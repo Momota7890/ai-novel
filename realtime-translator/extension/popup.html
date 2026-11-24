@@ -5,30 +5,192 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Realtime EN→TH Translator</title>
     <style>
+      :root {
+        color-scheme: dark;
+      }
       body {
-        width: 300px;
+        width: 320px;
         margin: 0;
         padding: 14px;
         font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
         background: #0f172a;
         color: #f8fafc;
+        font-size: 13px;
       }
-      h1 {
-        margin: 0 0 8px;
-        font-size: 15px;
+      .header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 12px;
       }
-      p {
+      .title {
         margin: 0;
+        font-size: 15px;
+        font-weight: 700;
+      }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 3px 8px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 600;
+        background: #1e293b;
+        color: #cbd5e1;
+      }
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #64748b;
+      }
+      .dot.online {
+        background: #22c55e;
+      }
+      .dot.offline {
+        background: #ef4444;
+      }
+      .card {
+        background: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 8px;
+        padding: 10px 12px;
+        margin-bottom: 10px;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .btn {
+        appearance: none;
+        border: 1px solid #475569;
+        background: #334155;
+        color: #f8fafc;
+        border-radius: 6px;
+        padding: 7px 10px;
         font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .btn:hover:not(:disabled) {
+        background: #475569;
+      }
+      .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .btn-primary {
+        width: 100%;
+        background: #0284c7;
+        border-color: #0ea5e9;
+      }
+      .btn-primary:hover:not(:disabled) {
+        background: #0369a1;
+      }
+      .btn-primary.active {
+        background: #16a34a;
+        border-color: #22c55e;
+      }
+      .btn-danger {
+        background: #7f1d1d;
+        border-color: #ef4444;
+      }
+      label {
+        display: block;
+        font-size: 11px;
         color: #94a3b8;
+        margin-bottom: 4px;
+      }
+      select {
+        width: 100%;
+        background: #0f172a;
+        color: #f8fafc;
+        border: 1px solid #475569;
+        border-radius: 6px;
+        padding: 6px 8px;
+        font-size: 12px;
+      }
+      .meta {
+        margin-top: 6px;
+        font-size: 11px;
+        color: #94a3b8;
+        line-height: 1.45;
+      }
+      .actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-top: 8px;
+      }
+      .footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 11px;
+        color: #94a3b8;
+      }
+      .link-btn {
+        background: none;
+        border: none;
+        color: #38bdf8;
+        cursor: pointer;
+        padding: 0;
+        font-size: 11px;
       }
     </style>
   </head>
   <body>
-    <main id="app">
-      <h1>Realtime EN→TH Translator</h1>
-      <p id="status-text">Scaffold ready — Phase 0</p>
-    </main>
+    <header class="header">
+      <h1 class="title">Realtime EN→TH</h1>
+      <span class="pill">
+        <span id="server-dot" class="dot"></span>
+        <span id="server-label">Checking...</span>
+      </span>
+    </header>
+
+    <section class="card">
+      <button id="toggle-btn" class="btn btn-primary" type="button">
+        Translate Page (Alt+T)
+      </button>
+      <div id="page-stats" class="meta">Ready on current tab</div>
+      <div class="actions">
+        <button id="retry-btn" class="btn" type="button">Retry Failed</button>
+        <button id="clear-btn" class="btn" type="button">Clear Page</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <label for="preset-select">Tone Preset</label>
+      <select id="preset-select">
+        <option value="light_novel">Light Novel Prose</option>
+        <option value="modern_manhwa">Modern Manhwa (Casual)</option>
+        <option value="fantasy_murim">Fantasy / Murim / Isekai</option>
+        <option value="literal">Literal / Reading Aid</option>
+      </select>
+    </section>
+
+    <section class="card">
+      <div class="row">
+        <strong>Local GPU Model</strong>
+        <span id="model-state-badge" class="pill">unknown</span>
+      </div>
+      <div id="model-meta" class="meta">Waiting for server status...</div>
+      <div class="actions">
+        <button id="load-model-btn" class="btn" type="button">Load Model</button>
+        <button id="unload-model-btn" class="btn btn-danger" type="button">
+          Unload GPU
+        </button>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <span id="status-text">127.0.0.1:8765</span>
+      <button id="options-btn" class="link-btn" type="button">Settings</button>
+    </footer>
+
     <script type="module" src="/src/popup/main.ts"></script>
   </body>
 </html>

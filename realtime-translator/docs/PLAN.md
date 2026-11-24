@@ -127,21 +127,21 @@ realtime-translator/
 **Objective:** Deliver a working end-to-end **Web Novel bilingual inline translator** backed by `typhoon-ai/typhoon2.1-gemma3-12b` (4-bit) and the bounded SQLite LRU cache.
 
 #### Backend Tasks
-- [ ] **1.1** Implement `config.py` (`HF_HOME`, `MODEL_ID`, `SERVER_HOST=127.0.0.1`, `SERVER_PORT=8765`, `CACHE_DB_PATH`, `CACHE_MAX_MB=50`, `CACHE_TTL_DAYS=30`, `IDLE_UNLOAD_MINUTES=15`).
-- [ ] **1.2** Implement `cache_store.py`: SQLite (WAL mode) keyed by SHA-256 of `(mode, normalized_input, model_id, preset, glossary_hash)` with automatic LRU eviction when DB exceeds `CACHE_MAX_MB` or entry exceeds `CACHE_TTL_DAYS`, plus `/cache/stats` and `/cache/clear`.
-- [ ] **1.3** Implement `model_manager.py`: lazy-loading `typhoon-ai/typhoon2.1-gemma3-12b` in 4-bit NF4 (`bnb_4bit_compute_dtype=torch.bfloat16`), async request serialization lock (prevents GPU OOM on concurrent tabs), VRAM reporting (`torch.cuda.memory_allocated` / `nvidia-smi`), and `/health`, `/model/status`, `/model/load`, `/model/unload`.
-- [ ] **1.4** Implement `translator.py` + basic `prompt_builder.py`: batch 3–6 novel paragraphs per GPU forward pass using structured numbered JSON output so paragraph alignment never drifts, with graceful per-paragraph fallback if JSON parsing fails.
-- [ ] **1.5** Implement `/translate/novel` endpoint with cache lookup → GPU batch translation → cache write.
+- [x] **1.1** Implement `config.py` (`HF_HOME`, `MODEL_ID`, `SERVER_HOST=127.0.0.1`, `SERVER_PORT=8765`, `CACHE_DB_PATH`, `CACHE_MAX_MB=50`, `CACHE_TTL_DAYS=30`, `IDLE_UNLOAD_MINUTES=15`).
+- [x] **1.2** Implement `cache_store.py`: SQLite (WAL mode) keyed by SHA-256 of `(mode, normalized_input, model_id, preset, glossary_hash)` with automatic LRU eviction when DB exceeds `CACHE_MAX_MB` or entry exceeds `CACHE_TTL_DAYS`, plus `/cache/stats` and `/cache/clear`.
+- [x] **1.3** Implement `model_manager.py`: lazy-loading `typhoon-ai/typhoon2.1-gemma3-12b` in 4-bit NF4 (`bnb_4bit_compute_dtype=torch.bfloat16`), async request serialization lock (prevents GPU OOM on concurrent tabs), VRAM reporting (`torch.cuda.memory_allocated` / `nvidia-smi`), and `/health`, `/model/status`, `/model/load`, `/model/unload`.
+- [x] **1.4** Implement `translator.py` + basic `prompt_builder.py`: batch 3–6 novel paragraphs per GPU forward pass using structured numbered JSON output so paragraph alignment never drifts, with graceful per-paragraph fallback if JSON parsing fails.
+- [x] **1.5** Implement `/translate/novel` endpoint with cache lookup → GPU batch translation → cache write.
 
 #### Extension Tasks
-- [ ] **1.6** Implement `background/serviceWorker.ts`: localhost API proxy (avoids Mixed Content / site CSP blocks on HTTPS novel sites), extension state messaging, and `Alt+T` toggle command.
-- [ ] **1.7** Implement `content/novel/extractor.ts`: detect primary chapter text container (filters navbars, sidebars, comments, ads) and tag translatable paragraphs cleanly.
-- [ ] **1.8** Implement `content/novel/scheduler.ts`: `IntersectionObserver` translating visible paragraphs immediately, queuing the next 1–2 viewport heights as background pre-fetch, cancelling stale requests on navigation.
-- [ ] **1.9** Implement `content/novel/renderer.ts`: inject bilingual Thai blocks directly beneath each English paragraph with subtle loading shimmer, error retry pill, and instant toggle on/off (`show/hide` without re-translating).
-- [ ] **1.10** Implement minimal `popup/` UI: On/Off toggle, server connection indicator, model loaded/unloaded status, and quick Clear Page / Retry actions.
+- [x] **1.6** Implement `background/serviceWorker.ts`: localhost API proxy (avoids Mixed Content / site CSP blocks on HTTPS novel sites), extension state messaging, and `Alt+T` toggle command.
+- [x] **1.7** Implement `content/novel/extractor.ts`: detect primary chapter text container (filters navbars, sidebars, comments, ads) and tag translatable paragraphs cleanly.
+- [x] **1.8** Implement `content/novel/scheduler.ts`: `IntersectionObserver` translating visible paragraphs immediately, queuing the next 1–2 viewport heights as background pre-fetch, cancelling stale requests on navigation.
+- [x] **1.9** Implement `content/novel/renderer.ts`: inject bilingual Thai blocks directly beneath each English paragraph with subtle loading shimmer, error retry pill, and instant toggle on/off (`show/hide` without re-translating).
+- [x] **1.10** Implement minimal `popup/` UI: On/Off toggle, server connection indicator, model loaded/unloaded status, and quick Clear Page / Retry actions.
 
 #### Phase 1 Verification
-- [ ] **Automated (`pytest`):** `test_cache_store.py` (hit/miss, LRU cap enforcement, TTL expiry, clear) and `test_api_routes.py` (`/health`, `/translate/novel` mocked + batch alignment).
+- [x] **Automated (`pytest`):** `test_cache_store.py` (hit/miss, LRU cap enforcement, TTL expiry, clear) and `test_api_routes.py` (`/health`, `/translate/novel` mocked + batch alignment).
 - [ ] **Benchmark (`benchmarks/bench_novel.py`):** Translate 20 real English web-novel paragraphs; verify Thai naturalness, steady-state latency (< 4s per 4-paragraph batch), cache hit (< 10ms), and peak VRAM (< 12.5 GB).
 - [ ] **Chrome/Edge Manual Checklist:**
   - Load `extension/dist` unpacked; open an English web novel chapter.
