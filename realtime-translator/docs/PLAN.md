@@ -111,11 +111,11 @@ realtime-translator/
 ### Phase 0 — Workspace Bootstrap & Environment Verification
 **Objective:** Create project scaffolding, verify `.venv --system-site-packages` with PyTorch CUDA 12.8, verify `D:\hf_cache`, and establish clean dev/test tooling.
 
-- [ ] **0.1** Initialize `realtime-translator/` directory layout, `.gitignore` (excluding `.venv/`, `node_modules/`, `dist/`, `.env`, `*.db`), and `.env.example`.
-- [ ] **0.2** Create Python virtual environment with `python -m venv --system-site-packages backend\.venv` and confirm `torch.cuda.is_available() == True` on RTX 5060 Ti.
-- [ ] **0.3** Install backend dependencies (`fastapi`, `uvicorn`, `pydantic-settings`, `transformers`, `accelerate`, `bitsandbytes`, `huggingface-hub`, `pillow`, `numpy`, `pytest`, `httpx`).
-- [ ] **0.4** Verify `D:\hf_cache` write access and test `bitsandbytes` 4-bit NF4 load compatibility on CUDA 12.8 (with documented fallback check if a wheel version pin is needed).
-- [ ] **0.5** Initialize `extension/` with `package.json`, `tsconfig.json`, `vite.config.ts`, and `manifest.json` producing a minimal loadable `dist/`.
+- [x] **0.1** Initialize `realtime-translator/` directory layout, `.gitignore` (excluding `.venv/`, `node_modules/`, `dist/`, `.env`, `*.db`), and `.env.example`.
+- [x] **0.2** Create Python virtual environment with `python -m venv --system-site-packages backend\.venv` and confirm `torch.cuda.is_available() == True` on RTX 5060 Ti.
+- [x] **0.3** Install backend dependencies (`fastapi`, `uvicorn`, `pydantic-settings`, `transformers`, `accelerate`, `bitsandbytes`, `huggingface-hub`, `pillow`, `numpy`, `pytest`, `httpx`).
+- [x] **0.4** Verify `D:\hf_cache` write access and test `bitsandbytes` 4-bit NF4 load compatibility on CUDA 12.8 (with documented fallback check if a wheel version pin is needed).
+- [x] **0.5** Initialize `extension/` with `package.json`, `tsconfig.json`, `vite.config.ts`, and `manifest.json` producing a minimal loadable `dist/`.
 
 **Phase 0 Definition of Done:**
 - `backend\.venv\Scripts\python.exe` imports `torch` (CUDA True), `transformers`, `bitsandbytes`, and `fastapi` with zero errors.

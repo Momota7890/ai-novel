@@ -11,7 +11,7 @@ This guide is tailored to your verified PC environment:
 
 ## 1. One-Time Backend Setup (Python + Hugging Face)
 
-All commands assume you are inside `c:\Users\Momota.k\OneDrive\Desktop\line_bot\realtime-translator`.
+All commands assume you are inside `c:\Users\Momota.k\OneDrive\Desktop\ai-novel\realtime-translator`.
 
 ### Step 1: Create the Hugging Face cache directory on `D:`
 Keeping model weights on `D:\hf_cache` prevents ~25 GB of safetensors from filling `C:` or syncing to OneDrive.
@@ -88,7 +88,7 @@ This outputs the ready-to-load Chromium Manifest V3 bundle into `extension\dist\
 1. Open `chrome://extensions` (or `edge://extensions` / `brave://extensions`).
 2. Turn ON **Developer mode** (top-right toggle).
 3. Click **Load unpacked**.
-4. Select `c:\Users\Momota.k\OneDrive\Desktop\line_bot\realtime-translator\extension\dist`.
+4. Select `c:\Users\Momota.k\OneDrive\Desktop\ai-novel\realtime-translator\extension\dist`.
 5. Pin the extension icon to your browser toolbar for quick access.
 
 *(After editing extension code during development, run `npm run build` in `extension/` and click the Reload icon on the extension card.)*

@@ -1,0 +1,49 @@
+{
+  "manifest_version": 3,
+  "name": "Realtime EN→TH Novel & Manhwa Translator",
+  "version": "0.1.0",
+  "description": "100% free, local offline-capable English to Thai real-time translator for web novels and vertical long-strip manhwa.",
+  "permissions": ["storage", "activeTab", "tabs"],
+  "host_permissions": [
+    "http://127.0.0.1:8765/*",
+    "http://localhost:8765/*",
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Realtime EN→TH Translator",
+    "default_popup": "popup.html"
+  },
+  "options_page": "options.html",
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["overlay.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "commands": {
+    "toggle-translate": {
+      "suggested_key": {
+        "default": "Alt+T"
+      },
+      "description": "Toggle EN→TH translation on the current tab"
+    },
+    "peek-original": {
+      "suggested_key": {
+        "default": "Alt+O"
+      },
+      "description": "Peek at original English text beneath manhwa overlays"
+    },
+    "snip-region": {
+      "suggested_key": {
+        "default": "Alt+S"
+      },
+      "description": "Activate manual region snip translation tool"
+    }
+  }
+}

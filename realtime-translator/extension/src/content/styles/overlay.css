@@ -1,0 +1,27 @@
+/* Scoped styles for Realtime EN->TH Translator (all classes/vars prefixed with rt-) */
+
+:root {
+  --rt-font-family: "Sarabun", "Noto Sans Thai", "Tahoma", sans-serif;
+  --rt-font-size: 0.95em;
+  --rt-line-height: 1.65;
+  --rt-text-color: inherit;
+  --rt-block-bg: rgba(148, 163, 184, 0.08);
+  --rt-block-border: rgba(56, 189, 248, 0.45);
+}
+
+.rt-hidden .rt-thai-block,
+.rt-hidden .rt-manhwa-overlay {
+  display: none !important;
+}
+
+.rt-thai-block {
+  font-family: var(--rt-font-family);
+  font-size: var(--rt-font-size);
+  line-height: var(--rt-line-height);
+  color: var(--rt-text-color);
+  background: var(--rt-block-bg);
+  border-left: 3px solid var(--rt-block-border);
+  padding: 6px 10px;
+  margin: 4px 0 12px;
+  border-radius: 4px;
+}

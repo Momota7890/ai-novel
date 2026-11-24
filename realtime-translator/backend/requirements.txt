@@ -1,0 +1,23 @@
+# NOTE: Do NOT add `torch` here!
+# `backend\.venv` is created with `--system-site-packages` to reuse the global
+# CUDA 12.8 PyTorch (torch 2.10.0+cu128) on RTX 5060 Ti without overwriting it.
+
+# Phase 0-1: Core API, Hugging Face LLM & Testing
+fastapi>=0.115.0,<1.0.0
+uvicorn[standard]>=0.32.0,<1.0.0
+pydantic>=2.9.0,<3.0.0
+pydantic-settings>=2.6.0,<3.0.0
+transformers>=4.50.0
+accelerate>=1.2.0
+bitsandbytes>=0.45.0
+huggingface-hub>=0.27.0
+pillow>=11.0.0
+numpy>=1.26.0,<3.0.0
+pytest>=8.3.0
+pytest-asyncio>=0.24.0
+httpx>=0.28.0
+
+# Phase 2: Manhwa CV & OCR (uncommented/installed in Phase 2.1)
+# ultralytics>=8.3.0
+# rapidocr-onnxruntime>=1.4.0
+# opencv-python-headless>=4.10.0
