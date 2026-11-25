@@ -9,7 +9,7 @@
         color-scheme: dark;
       }
       body {
-        width: 320px;
+        width: 340px;
         margin: 0;
         padding: 14px;
         font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -21,7 +21,7 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
-        margin-bottom: 12px;
+        margin-bottom: 10px;
       }
       .title {
         margin: 0;
@@ -98,11 +98,14 @@
         background: #7f1d1d;
         border-color: #ef4444;
       }
-      label {
+      label.field-label {
         display: block;
         font-size: 11px;
         color: #94a3b8;
-        margin-bottom: 4px;
+        margin: 8px 0 4px;
+      }
+      label.field-label:first-child {
+        margin-top: 0;
       }
       select {
         width: 100%;
@@ -113,11 +116,43 @@
         padding: 6px 8px;
         font-size: 12px;
       }
+      .switch-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 8px;
+        padding-top: 8px;
+        border-top: 1px solid #334155;
+        font-size: 12px;
+      }
+      .switch-row input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+        accent-color: #22c55e;
+        cursor: pointer;
+      }
       .meta {
         margin-top: 6px;
         font-size: 11px;
         color: #94a3b8;
         line-height: 1.45;
+      }
+      .vram-track {
+        height: 6px;
+        width: 100%;
+        background: #0f172a;
+        border-radius: 999px;
+        overflow: hidden;
+        margin-top: 6px;
+      }
+      .vram-fill {
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg, #38bdf8, #22c55e);
+        transition: width 0.25s ease;
+      }
+      .vram-fill.warn {
+        background: linear-gradient(90deg, #f59e0b, #ef4444);
       }
       .actions {
         display: grid;
@@ -138,7 +173,8 @@
         color: #38bdf8;
         cursor: pointer;
         padding: 0;
-        font-size: 11px;
+        font-size: 12px;
+        font-weight: 600;
       }
     </style>
   </head>
@@ -156,6 +192,12 @@
         Translate Page (Alt+T)
       </button>
       <div id="page-stats" class="meta">Ready on current tab</div>
+      <div class="switch-row">
+        <label for="auto-enable-check" id="auto-enable-label" style="cursor: pointer">
+          Always enable on this site
+        </label>
+        <input id="auto-enable-check" type="checkbox" disabled />
+      </div>
       <div class="actions">
         <button id="snip-btn" class="btn" type="button">Snip (Alt+S)</button>
         <button id="peek-btn" class="btn" type="button">Peek (Alt+O)</button>
@@ -165,18 +207,24 @@
     </section>
 
     <section class="card">
-      <label for="mode-select">Page Mode</label>
-      <select id="mode-select" style="margin-bottom: 8px">
+      <label class="field-label" for="mode-select">Page Mode (per site)</label>
+      <select id="mode-select">
         <option value="auto">Auto Detect (Novel / Manhwa)</option>
         <option value="novel">Web Novel (Bilingual Inline)</option>
         <option value="manhwa">Manhwa / Webtoon (Bubbles)</option>
       </select>
-      <label for="preset-select">Tone Preset</label>
+
+      <label class="field-label" for="preset-select">Tone Preset</label>
       <select id="preset-select">
         <option value="light_novel">Light Novel Prose</option>
         <option value="modern_manhwa">Modern Manhwa (Casual)</option>
         <option value="fantasy_murim">Fantasy / Murim / Isekai</option>
         <option value="literal">Literal / Reading Aid</option>
+      </select>
+
+      <label class="field-label" for="glossary-select">Series Glossary</label>
+      <select id="glossary-select">
+        <option value="">None (No Glossary)</option>
       </select>
     </section>
 
@@ -185,18 +233,23 @@
         <strong>Local GPU Model</strong>
         <span id="model-state-badge" class="pill">unknown</span>
       </div>
+      <div class="vram-track">
+        <div id="vram-bar-fill" class="vram-fill"></div>
+      </div>
       <div id="model-meta" class="meta">Waiting for server status...</div>
       <div class="actions">
         <button id="load-model-btn" class="btn" type="button">Load Model</button>
         <button id="unload-model-btn" class="btn btn-danger" type="button">
-          Unload GPU
+          Unload GPU Now
         </button>
       </div>
     </section>
 
     <footer class="footer">
       <span id="status-text">127.0.0.1:8765</span>
-      <button id="options-btn" class="link-btn" type="button">Settings</button>
+      <button id="options-btn" class="link-btn" type="button">
+        Options &amp; Glossaries
+      </button>
     </footer>
 
     <script type="module" src="/src/popup/main.ts"></script>

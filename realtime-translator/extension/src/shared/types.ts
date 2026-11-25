@@ -167,6 +167,43 @@ export interface SnipTranslateResponse {
   latency_ms: number;
 }
 
+export type GlossaryCategory = "name" | "skill" | "place" | "pronoun" | "term";
+
+export interface GlossaryEntryInput {
+  source_term: string;
+  target_term: string;
+  category: GlossaryCategory;
+  note: string;
+}
+
+export interface GlossaryEntryResponse extends GlossaryEntryInput {
+  id: number;
+}
+
+export interface GlossaryUpsertRequest {
+  name: string;
+  url_pattern: string;
+  default_preset: PresetId;
+  entries: GlossaryEntryInput[];
+}
+
+export interface GlossaryResponse {
+  id: string;
+  name: string;
+  url_pattern: string;
+  default_preset: PresetId;
+  updated_at: number;
+  entries: GlossaryEntryResponse[];
+}
+
+export interface GlossaryListResponse {
+  glossaries: GlossaryResponse[];
+}
+
+export interface GlossaryDeleteResponse {
+  deleted: boolean;
+}
+
 export interface CacheStatsResponse {
   db_path: string;
   total_entries: number;
@@ -251,11 +288,21 @@ export interface TabToggleMessage {
   enabled?: boolean;
   preset?: PresetId;
   modeOverride?: TabModeOverride;
+  glossaryId?: string | null;
 }
 
 export interface TabSetModeMessage {
   type: "RT_TAB_SET_MODE";
   modeOverride: TabModeOverride;
+}
+
+export interface TabSetGlossaryMessage {
+  type: "RT_TAB_SET_GLOSSARY";
+  glossaryId: string | null;
+}
+
+export interface TabApplyPrefsMessage {
+  type: "RT_TAB_APPLY_PREFS";
 }
 
 export interface TabPeekMessage {
@@ -280,6 +327,8 @@ export type TabControlMessage =
   | TabGetStateMessage
   | TabToggleMessage
   | TabSetModeMessage
+  | TabSetGlossaryMessage
+  | TabApplyPrefsMessage
   | TabPeekMessage
   | TabSnipMessage
   | TabRetryFailedMessage
@@ -289,9 +338,13 @@ export interface TabStateSnapshot {
   enabled: boolean;
   hidden: boolean;
   peekActive: boolean;
+  hostname: string;
+  url: string;
+  autoEnabledSite: boolean;
   modeOverride: TabModeOverride;
   resolvedMode: ResolvedPageMode;
   preset: PresetId;
+  glossaryId: string | null;
   sessionId: string;
   totalParagraphs: number;
   translatedCount: number;

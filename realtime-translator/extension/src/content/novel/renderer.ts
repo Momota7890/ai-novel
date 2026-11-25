@@ -116,6 +116,8 @@ export class NovelRenderer {
     style.setProperty("--rt-font-size", prefs.fontSize);
     style.setProperty("--rt-line-height", String(prefs.lineHeight));
     style.setProperty("--rt-text-color", prefs.textColor);
+    style.setProperty("--rt-mask-opacity", String(prefs.maskOpacity));
+    style.setProperty("--rt-manhwa-font-scale", String(prefs.manhwaFontScale));
   }
 
   clearAll(): void {

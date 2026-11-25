@@ -1,10 +1,11 @@
 /**
- * Content script coordinator (Phase 1 Web Novel + Phase 2 Vertical Manhwa & Alt+S Snip).
+ * Content script coordinator (Phase 1 Web Novel + Phase 2 Manhwa/Snip + Phase 3 Whitelist/Glossary).
  * Compiled as a self-contained IIFE to `dist/content.js`.
  */
 
 import { apiClient } from "../shared/apiClient";
-import { getPreferences } from "../shared/storage";
+import { detectPageMode, findMatchingGlossary } from "../shared/detector";
+import { getPreferences, getSiteRule } from "../shared/storage";
 import type {
   PresetId,
   ResolvedPageMode,
@@ -13,7 +14,6 @@ import type {
   TabStateSnapshot,
 } from "../shared/types";
 import { ManhwaPageController } from "./manhwa/controller";
-import { scanManhwaStrips } from "./manhwa/imageScanner";
 import { ManhwaSnipTool } from "./manhwa/snipTool";
 import { extractNovelParagraphs } from "./novel/extractor";
 import { NovelRenderer } from "./novel/renderer";
@@ -30,22 +30,6 @@ function buildSessionId(loc: Location = window.location): string {
   return `page-${loc.hostname}-${cleanPath || "root"}`;
 }
 
-function inferPageMode(doc: Document = document): ResolvedPageMode {
-  const strips = scanManhwaStrips(doc);
-  const paragraphs = extractNovelParagraphs(doc);
-  const totalWords = paragraphs.reduce(
-    (sum, p) => sum + p.text.split(/\s+/).filter(Boolean).length,
-    0,
-  );
-  if (strips.length >= 2 && totalWords < 250) {
-    return "manhwa";
-  }
-  if (strips.length >= 1 && paragraphs.length < 3) {
-    return "manhwa";
-  }
-  return "novel";
-}
-
 class PageTranslatorCoordinator {
   private readonly novelRenderer = new NovelRenderer(document);
   private novelScheduler: NovelTranslationScheduler | null = null;
@@ -55,33 +39,83 @@ class PageTranslatorCoordinator {
   private readonly snipTool: ManhwaSnipTool;
 
   private enabled = false;
+  private autoEnabledSite = false;
   private modeOverride: TabModeOverride = "auto";
   private resolvedMode: ResolvedPageMode = "novel";
   private preset: PresetId = "light_novel";
+  private glossaryId: string | null = null;
+  private manualGlossarySelected = false;
   private sessionId = buildSessionId();
   private lastUrl = window.location.href;
+  private navWatcherId: number | null = null;
 
   constructor() {
     this.snipTool = new ManhwaSnipTool(
       {
         getSessionId: () => this.sessionId,
         getPreset: () => this.preset,
+        getGlossaryId: () => this.glossaryId,
       },
       document,
       window,
     );
   }
 
+  async bootstrap(): Promise<void> {
+    await this.applyStoredPreferences();
+    const rule = await getSiteRule(window.location.hostname).catch(() => null);
+    if (rule) {
+      this.autoEnabledSite = rule.autoEnable;
+      this.modeOverride = rule.modeOverride;
+      if (rule.glossaryId) {
+        this.glossaryId = rule.glossaryId;
+        this.manualGlossarySelected = true;
+      }
+    }
+
+    this.resolvedMode =
+      this.modeOverride === "auto" ? detectPageMode(document) : this.modeOverride;
+
+    this.startNavigationWatcher();
+
+    if (this.autoEnabledSite) {
+      await this.enable();
+    }
+  }
+
+  async applyStoredPreferences(): Promise<void> {
+    const prefs = await getPreferences().catch(() => null);
+    if (!prefs) {
+      return;
+    }
+    this.novelRenderer.applyTypography(prefs.typography);
+    this.manhwaController.setConfig({
+      fontScale: prefs.typography.manhwaFontScale,
+    });
+    this.preset = prefs.activePreset;
+
+    const rule = prefs.siteRules[window.location.hostname.toLowerCase()];
+    this.autoEnabledSite = Boolean(rule?.autoEnable);
+    if (rule?.modeOverride) {
+      this.modeOverride = rule.modeOverride;
+    }
+  }
+
   async toggle(
     forceEnabled?: boolean,
     overridePreset?: PresetId,
     overrideMode?: TabModeOverride,
+    overrideGlossaryId?: string | null,
   ): Promise<TabStateSnapshot> {
     if (overridePreset) {
       this.preset = overridePreset;
     }
     if (overrideMode) {
       this.modeOverride = overrideMode;
+    }
+    if (overrideGlossaryId !== undefined) {
+      this.glossaryId = overrideGlossaryId;
+      this.manualGlossarySelected = true;
     }
 
     const nextEnabled = forceEnabled ?? !this.enabled;
@@ -101,21 +135,42 @@ class PageTranslatorCoordinator {
       await this.enable();
     } else {
       this.resolvedMode =
-        nextMode === "auto" ? inferPageMode(document) : nextMode;
+        nextMode === "auto" ? detectPageMode(document) : nextMode;
     }
     return this.getSnapshot();
   }
 
-  async enable(): Promise<void> {
-    const prefs = await getPreferences().catch(() => null);
-    if (prefs) {
-      this.novelRenderer.applyTypography(prefs.typography);
-      this.preset = prefs.activePreset;
-    }
+  async setGlossary(glossaryId: string | null): Promise<TabStateSnapshot> {
+    this.glossaryId = glossaryId;
+    this.manualGlossarySelected = true;
+    this.novelScheduler?.setConfig({ glossaryId });
+    this.manhwaController.setConfig({ glossaryId });
+    return this.getSnapshot();
+  }
 
+  private async resolveAutoGlossary(): Promise<void> {
+    if (this.manualGlossarySelected) {
+      return;
+    }
+    try {
+      const resp = await apiClient.listGlossaries();
+      const matched = findMatchingGlossary(window.location.href, resp.glossaries);
+      if (matched) {
+        this.glossaryId = matched.id;
+        this.preset = matched.default_preset;
+      }
+    } catch {
+      // Backend may be offline; skip auto-glossary silently.
+    }
+  }
+
+  async enable(): Promise<void> {
+    await this.applyStoredPreferences();
     this.checkChapterNavigation();
+    await this.resolveAutoGlossary();
+
     this.resolvedMode =
-      this.modeOverride === "auto" ? inferPageMode(document) : this.modeOverride;
+      this.modeOverride === "auto" ? detectPageMode(document) : this.modeOverride;
 
     this.enabled = true;
     this.novelRenderer.setHidden(false);
@@ -125,6 +180,7 @@ class PageTranslatorCoordinator {
       this.manhwaController.setConfig({
         sessionId: this.sessionId,
         preset: this.preset,
+        glossaryId: this.glossaryId,
       });
       this.manhwaController.start();
       return;
@@ -135,6 +191,7 @@ class PageTranslatorCoordinator {
       this.novelScheduler.setConfig({
         sessionId: this.sessionId,
         preset: this.preset,
+        glossaryId: this.glossaryId,
       });
       this.novelScheduler.resume();
       return;
@@ -144,6 +201,7 @@ class PageTranslatorCoordinator {
     this.novelScheduler = new NovelTranslationScheduler(this.novelRenderer, {
       sessionId: this.sessionId,
       preset: this.preset,
+      glossaryId: this.glossaryId,
       batchSize: 4,
     });
     this.novelInitialized = true;
@@ -205,9 +263,13 @@ class PageTranslatorCoordinator {
       enabled: this.enabled,
       hidden: this.novelRenderer.isHidden(),
       peekActive: this.manhwaController.isPeekActive(),
+      hostname: window.location.hostname,
+      url: window.location.href,
+      autoEnabledSite: this.autoEnabledSite,
       modeOverride: this.modeOverride,
       resolvedMode: this.resolvedMode,
       preset: this.preset,
+      glossaryId: this.glossaryId,
       sessionId: this.sessionId,
       totalParagraphs: novelStats.totalParagraphs,
       translatedCount: novelStats.translatedCount,
@@ -224,14 +286,29 @@ class PageTranslatorCoordinator {
     };
   }
 
-  private checkChapterNavigation(): void {
+  private startNavigationWatcher(): void {
+    const onUrlChange = (): void => {
+      const changed = this.checkChapterNavigation();
+      if (changed && (this.enabled || this.autoEnabledSite)) {
+        void this.enable();
+      }
+    };
+    window.addEventListener("popstate", onUrlChange);
+    window.addEventListener("hashchange", onUrlChange);
+    if (this.navWatcherId === null) {
+      this.navWatcherId = window.setInterval(onUrlChange, 1200);
+    }
+  }
+
+  private checkChapterNavigation(): boolean {
     if (window.location.href === this.lastUrl) {
-      return;
+      return false;
     }
     const previousSession = this.sessionId;
     this.lastUrl = window.location.href;
     this.sessionId = buildSessionId();
     this.novelInitialized = false;
+    this.manualGlossarySelected = false;
     this.novelScheduler?.stop();
     this.novelScheduler = null;
     this.novelRenderer.clearAll();
@@ -240,6 +317,7 @@ class PageTranslatorCoordinator {
     void apiClient.resetSession(previousSession).catch(() => {
       // Ignore if backend is offline.
     });
+    return true;
   }
 }
 
@@ -259,6 +337,8 @@ if (typeof document !== "undefined" && document.documentElement) {
   const coordinator = new PageTranslatorCoordinator();
 
   if (typeof chrome !== "undefined" && chrome.runtime?.onMessage) {
+    void coordinator.bootstrap();
+
     chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
       if (!isTabControlMessage(message)) {
         return false;
@@ -287,13 +367,30 @@ if (typeof document !== "undefined" && document.documentElement) {
 
       if (message.type === "RT_TAB_TOGGLE") {
         void coordinator
-          .toggle(message.enabled, message.preset, message.modeOverride)
+          .toggle(
+            message.enabled,
+            message.preset,
+            message.modeOverride,
+            message.glossaryId,
+          )
           .then(sendResponse);
         return true;
       }
 
       if (message.type === "RT_TAB_SET_MODE") {
         void coordinator.setModeOverride(message.modeOverride).then(sendResponse);
+        return true;
+      }
+
+      if (message.type === "RT_TAB_SET_GLOSSARY") {
+        void coordinator.setGlossary(message.glossaryId).then(sendResponse);
+        return true;
+      }
+
+      if (message.type === "RT_TAB_APPLY_PREFS") {
+        void coordinator.applyStoredPreferences().then(() => {
+          sendResponse(coordinator.getSnapshot());
+        });
         return true;
       }
 

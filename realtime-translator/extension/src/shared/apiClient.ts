@@ -16,6 +16,10 @@ import type {
   ErrorDetail,
   FetchImageBase64Data,
   FetchImageBase64Message,
+  GlossaryDeleteResponse,
+  GlossaryListResponse,
+  GlossaryResponse,
+  GlossaryUpsertRequest,
   HealthResponse,
   HttpMethod,
   ManhwaTranslateRequest,
@@ -373,5 +377,51 @@ export const apiClient = {
       method: "POST",
       signal,
     });
+  },
+
+  listGlossaries(signal?: AbortSignal): Promise<GlossaryListResponse> {
+    return sendApiRequest<GlossaryListResponse>("/glossaries", {
+      method: "GET",
+      signal,
+    });
+  },
+
+  createGlossary(
+    body: GlossaryUpsertRequest,
+    signal?: AbortSignal,
+  ): Promise<GlossaryResponse> {
+    return sendApiRequest<GlossaryResponse>("/glossaries", {
+      method: "POST",
+      body,
+      signal,
+    });
+  },
+
+  updateGlossary(
+    glossaryId: string,
+    body: GlossaryUpsertRequest,
+    signal?: AbortSignal,
+  ): Promise<GlossaryResponse> {
+    return sendApiRequest<GlossaryResponse>(
+      `/glossaries/${encodeURIComponent(glossaryId)}`,
+      {
+        method: "PUT",
+        body,
+        signal,
+      },
+    );
+  },
+
+  deleteGlossary(
+    glossaryId: string,
+    signal?: AbortSignal,
+  ): Promise<GlossaryDeleteResponse> {
+    return sendApiRequest<GlossaryDeleteResponse>(
+      `/glossaries/${encodeURIComponent(glossaryId)}`,
+      {
+        method: "DELETE",
+        signal,
+      },
+    );
   },
 };

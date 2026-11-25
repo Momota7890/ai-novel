@@ -23,8 +23,9 @@ from app.schemas.manhwa import (
 )
 from app.services.bubble_detector import BubbleStyle, classify_bubble_style
 from app.services.cache_store import CacheStore, compute_cache_key, compute_content_hash
+from app.services.glossary_store import GlossaryStore
 from app.services.model_manager import ModelManager
-from app.services.prompt_builder import PromptItem
+from app.services.prompt_builder import GlossaryTerm, PromptItem
 from app.services.strip_slicer import (
     DetectedBox,
     merge_cross_slice_boxes,
@@ -121,6 +122,7 @@ class ManhwaPipeline:
         translator: TranslatorService,
         bubble_detector: BubbleDetectorProtocol,
         ocr_engine: OcrEngineProtocol,
+        glossary_store: GlossaryStore | None = None,
         slice_height: int = 1400,
         slice_overlap: int = 250,
     ) -> None:
@@ -129,8 +131,14 @@ class ManhwaPipeline:
         self._translator = translator
         self._bubble_detector = bubble_detector
         self._ocr_engine = ocr_engine
+        self._glossary_store = glossary_store
         self._slice_height = slice_height
         self._slice_overlap = slice_overlap
+
+    def _resolve_glossary(self, glossary_id: str | None) -> tuple[list[GlossaryTerm], str]:
+        if self._glossary_store is not None:
+            return self._glossary_store.get_prompt_terms_and_hash(glossary_id)
+        return [], glossary_id or "none"
 
     async def translate_manhwa(
         self,
@@ -138,6 +146,7 @@ class ManhwaPipeline:
     ) -> ManhwaTranslateResponse:
         total_start = time.perf_counter()
         raw_bytes = decode_base64_bytes(req.image_base64)
+        glossary_terms, glossary_hash = self._resolve_glossary(req.glossary_id)
 
         # Compute SHA-256 on raw bytes BEFORE image decode so cache hits skip CV/OCR/GPU.
         content_hash = compute_content_hash(raw_bytes)
@@ -146,7 +155,7 @@ class ManhwaPipeline:
             content_hash=content_hash,
             model_id=self._model_manager.active_model_id,
             preset=req.preset,
-            glossary_hash=req.glossary_id or "none",
+            glossary_hash=glossary_hash,
         )
 
         if not req.bypass_cache:
@@ -224,7 +233,7 @@ class ManhwaPipeline:
                 preset=req.preset,
                 session_id=req.session_id,
                 mode="manhwa",
-                glossary_terms=None,
+                glossary_terms=glossary_terms or None,
             )
 
             for idx, (box, style, source_text) in enumerate(candidates):
@@ -280,12 +289,13 @@ class ManhwaPipeline:
         source_text = await asyncio.to_thread(self._ocr_engine.extract_text, rgb)
         translated_text = ""
         if source_text:
+            glossary_terms, _glossary_hash = self._resolve_glossary(req.glossary_id)
             result = await self._translator.translate_batch(
                 [PromptItem(id="snip-0", text=source_text)],
                 preset=req.preset,
                 session_id=req.session_id,
                 mode="snip",
-                glossary_terms=None,
+                glossary_terms=glossary_terms or None,
             )
             translated_text = result["snip-0"]
 

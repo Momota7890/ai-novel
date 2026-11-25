@@ -20,6 +20,7 @@ from app.schemas.translation import (
     SessionResetResponse,
 )
 from app.services.cache_store import CacheStore, compute_cache_key, compute_content_hash
+from app.services.glossary_store import GlossaryStore
 from app.services.manhwa_pipeline import ManhwaPipeline
 from app.services.model_manager import ModelManager
 from app.services.prompt_builder import (
@@ -53,9 +54,15 @@ async def translate_novel(
     cache_store: CacheStore = request.app.state.cache_store
     model_manager: ModelManager = request.app.state.model_manager
     translator: TranslatorService = request.app.state.translator
+    glossary_store: GlossaryStore | None = getattr(request.app.state, "glossary_store", None)
 
     model_id = model_manager.active_model_id
-    glossary_hash = body.glossary_id or "none"
+    if glossary_store is not None:
+        glossary_terms, glossary_hash = glossary_store.get_prompt_terms_and_hash(
+            body.glossary_id
+        )
+    else:
+        glossary_terms, glossary_hash = [], body.glossary_id or "none"
 
     cached_by_id: dict[str, str] = {}
     cache_keys: dict[str, str] = {}
@@ -87,7 +94,7 @@ async def translate_novel(
             preset=body.preset,
             session_id=body.session_id,
             mode="novel",
-            glossary_terms=None,
+            glossary_terms=glossary_terms or None,
         )
         for item in misses:
             cache_store.put(

@@ -12,6 +12,8 @@ export interface TypographyPrefs {
   fontSize: string;
   lineHeight: number;
   textColor: string;
+  maskOpacity: number;
+  manhwaFontScale: number;
 }
 
 export interface SiteRule {
@@ -34,6 +36,8 @@ export const DEFAULT_TYPOGRAPHY: TypographyPrefs = {
   fontSize: "0.95em",
   lineHeight: 1.65,
   textColor: "inherit",
+  maskOpacity: 0.98,
+  manhwaFontScale: 1.0,
 };
 
 export const DEFAULT_PREFERENCES: UserPreferences = {
@@ -100,6 +104,18 @@ function mergePreferences(raw: unknown): UserPreferences {
       typeof record.typography?.textColor === "string"
         ? record.typography.textColor
         : DEFAULT_TYPOGRAPHY.textColor,
+    maskOpacity:
+      typeof record.typography?.maskOpacity === "number" &&
+      record.typography.maskOpacity >= 0.4 &&
+      record.typography.maskOpacity <= 1.0
+        ? record.typography.maskOpacity
+        : DEFAULT_TYPOGRAPHY.maskOpacity,
+    manhwaFontScale:
+      typeof record.typography?.manhwaFontScale === "number" &&
+      record.typography.manhwaFontScale >= 0.7 &&
+      record.typography.manhwaFontScale <= 1.4
+        ? record.typography.manhwaFontScale
+        : DEFAULT_TYPOGRAPHY.manhwaFontScale,
   };
 
   const siteRules: Record<string, SiteRule> = {};
@@ -183,4 +199,15 @@ export async function setSiteRule(
   const updatedRules = { ...prefs.siteRules, [key]: merged };
   await savePreferences({ siteRules: updatedRules });
   return merged;
+}
+
+export async function removeSiteRule(hostname: string): Promise<void> {
+  const prefs = await getPreferences();
+  const key = hostname.trim().toLowerCase();
+  if (!(key in prefs.siteRules)) {
+    return;
+  }
+  const updatedRules = { ...prefs.siteRules };
+  delete updatedRules[key];
+  await savePreferences({ siteRules: updatedRules });
 }

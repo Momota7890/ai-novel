@@ -8,8 +8,10 @@ import time
 from pathlib import Path
 
 import pytest
+from fastapi.testclient import TestClient
 
 from app.errors import AppError
+from app.main import create_app
 from app.services.model_manager import LoadedLLM
 from tests.conftest import build_mock_harness
 
@@ -59,6 +61,7 @@ async def test_lazy_load_manual_unload_and_idle_watchdog(tmp_path: Path) -> None
         assert unload_resp.state == "unloaded"
         assert unload_resp.vram_allocated_mb == 0
     finally:
+        harness.glossary_store.close()
         harness.cache_store.close()
 
 
@@ -89,6 +92,7 @@ async def test_gpu_lock_serializes_concurrent_generations(tmp_path: Path) -> Non
         assert results == ["ok", "ok", "ok"]
         assert max_concurrent == 1, "GPU lock must serialize concurrent inference calls"
     finally:
+        harness.glossary_store.close()
         harness.cache_store.close()
 
 
@@ -119,6 +123,7 @@ async def test_request_during_loading_returns_model_loading_503(tmp_path: Path) 
         assert status.state == "loaded"
     finally:
         allow_finish.set()
+        harness.glossary_store.close()
         harness.cache_store.close()
 
 
@@ -136,4 +141,50 @@ async def test_cuda_oom_clears_cache_and_returns_503(tmp_path: Path) -> None:
         assert exc_info.value.retryable is True
         assert harness.cuda.empty_cache_calls >= 1
     finally:
+        harness.glossary_store.close()
+        harness.cache_store.close()
+
+
+def test_fastapi_background_idle_watchdog_auto_unloads_and_reloads(tmp_path: Path) -> None:
+    harness = build_mock_harness(tmp_path)
+    app = create_app(
+        settings=harness.settings,
+        cache_store=harness.cache_store,
+        glossary_store=harness.glossary_store,
+        model_manager=harness.model_manager,
+        context_store=harness.context_store,
+        translator=harness.translator,
+        bubble_detector=harness.bubble_detector,
+        ocr_engine=harness.ocr_engine,
+        manhwa_pipeline=harness.manhwa_pipeline,
+        watchdog_interval_seconds=0.03,
+    )
+    try:
+        with TestClient(app) as client:
+            assert client.post("/model/load", json={"load_vision": True}).status_code == 200
+            assert harness.model_manager.state == "loaded"
+            assert harness.model_manager.bubble_detector_loaded is True
+
+            # Advance clock past 15-minute idle timeout and let watchdog task run.
+            harness.clock.advance(16 * 60)
+            time.sleep(0.12)
+
+            status = client.get("/model/status").json()
+            assert status["state"] == "unloaded"
+            assert status["bubble_detector_loaded"] is False
+            assert status["vram_allocated_mb"] == 0
+
+            # Next translation request transparently reloads the model.
+            resp = client.post(
+                "/translate/novel",
+                json={
+                    "session_id": "watchdog-reload",
+                    "preset": "light_novel",
+                    "paragraphs": [{"id": "p-1", "text": "Back from idle."}],
+                },
+            )
+            assert resp.status_code == 200
+            assert harness.model_manager.state == "loaded"
+    finally:
+        harness.glossary_store.close()
         harness.cache_store.close()

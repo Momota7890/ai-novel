@@ -42,6 +42,7 @@ export class ManhwaPageController {
     sessionId?: string;
     preset?: PresetId;
     glossaryId?: string | null;
+    fontScale?: number;
   }): void {
     if (config.sessionId !== undefined) {
       this.sessionId = config.sessionId;
@@ -51,6 +52,9 @@ export class ManhwaPageController {
     }
     if (config.glossaryId !== undefined) {
       this.glossaryId = config.glossaryId;
+    }
+    if (config.fontScale !== undefined) {
+      this.overlay.setFontScale(config.fontScale);
     }
   }
 

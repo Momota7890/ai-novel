@@ -12,10 +12,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import APP_VERSION, Settings
 from app.errors import register_exception_handlers
 from app.routers import cache as cache_router
+from app.routers import glossary as glossary_router
 from app.routers import health as health_router
 from app.routers import translate as translate_router
 from app.services.bubble_detector import BubbleDetector
 from app.services.cache_store import CacheStore
+from app.services.glossary_store import GlossaryStore
 from app.services.manhwa_pipeline import (
     BubbleDetectorProtocol,
     ManhwaPipeline,
@@ -46,6 +48,7 @@ def create_app(
     *,
     settings: Settings | None = None,
     cache_store: CacheStore | None = None,
+    glossary_store: GlossaryStore | None = None,
     model_manager: ModelManager | None = None,
     context_store: SessionContextStore | None = None,
     translator: TranslatorService | None = None,
@@ -62,11 +65,14 @@ def create_app(
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         owns_cache = cache_store is None
+        owns_glossary = glossary_store is None
+        db_path = cfg.resolved_cache_db_path()
         active_cache = cache_store or CacheStore(
-            db_path=cfg.resolved_cache_db_path(),
+            db_path=db_path,
             max_mb=cfg.cache_max_mb,
             ttl_days=cfg.cache_ttl_days,
         )
+        active_glossary = glossary_store or GlossaryStore(db_path=db_path)
         active_manager = model_manager or ModelManager(cfg)
         active_context = context_store or SessionContextStore()
         active_translator = translator or TranslatorService(
@@ -85,10 +91,12 @@ def create_app(
             translator=active_translator,
             bubble_detector=active_detector,
             ocr_engine=active_ocr,
+            glossary_store=active_glossary,
         )
 
         app.state.settings = cfg
         app.state.cache_store = active_cache
+        app.state.glossary_store = active_glossary
         app.state.model_manager = active_manager
         app.state.context_store = active_context
         app.state.translator = active_translator
@@ -111,6 +119,8 @@ def create_app(
                     await watchdog_task
                 except asyncio.CancelledError:
                     pass
+            if owns_glossary:
+                active_glossary.close()
             if owns_cache:
                 active_cache.close()
 
@@ -132,6 +142,7 @@ def create_app(
 
     app.include_router(health_router.router)
     app.include_router(cache_router.router)
+    app.include_router(glossary_router.router)
     app.include_router(translate_router.router)
     return app
 

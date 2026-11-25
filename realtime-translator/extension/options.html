@@ -3,29 +3,407 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Realtime EN→TH Translator — Options</title>
+    <title>Realtime EN→TH Translator — Settings</title>
     <style>
+      :root {
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
       body {
         margin: 0;
         padding: 24px;
         font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-        background: #0f172a;
+        background: #0b1120;
         color: #f8fafc;
+        font-size: 14px;
+      }
+      .container {
+        max-width: 1080px;
+        margin: 0 auto;
+      }
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
       }
       h1 {
-        margin: 0 0 8px;
-        font-size: 20px;
+        margin: 0;
+        font-size: 22px;
       }
-      p {
+      h2 {
+        margin: 0 0 12px;
+        font-size: 16px;
+        color: #38bdf8;
+      }
+      .toast {
+        padding: 8px 14px;
+        border-radius: 8px;
+        font-size: 13px;
+        background: #1e293b;
+        border: 1px solid #334155;
+        color: #cbd5e1;
+      }
+      .toast.ok {
+        border-color: #22c55e;
+        color: #86efac;
+      }
+      .toast.err {
+        border-color: #ef4444;
+        color: #fca5a5;
+      }
+      .card {
+        background: #0f172a;
+        border: 1px solid #1e293b;
+        border-radius: 12px;
+        padding: 18px;
+        margin-bottom: 18px;
+      }
+      .grid-2 {
+        display: grid;
+        grid-template-columns: 260px 1fr;
+        gap: 16px;
+      }
+      .form-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+        gap: 12px;
+      }
+      label {
+        display: block;
+        font-size: 12px;
+        color: #94a3b8;
+        margin-bottom: 4px;
+      }
+      input[type="text"],
+      input[type="number"],
+      select,
+      textarea {
+        width: 100%;
+        background: #1e293b;
+        color: #f8fafc;
+        border: 1px solid #334155;
+        border-radius: 6px;
+        padding: 7px 10px;
+        font-size: 13px;
+      }
+      .btn {
+        appearance: none;
+        border: 1px solid #475569;
+        background: #1e293b;
+        color: #f8fafc;
+        border-radius: 6px;
+        padding: 7px 12px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .btn:hover:not(:disabled) {
+        background: #334155;
+      }
+      .btn-primary {
+        background: #0284c7;
+        border-color: #0ea5e9;
+      }
+      .btn-primary:hover:not(:disabled) {
+        background: #0369a1;
+      }
+      .btn-danger {
+        background: #7f1d1d;
+        border-color: #ef4444;
+      }
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 12px;
+      }
+      .glossary-list {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .glossary-item {
+        text-align: left;
+        padding: 8px 10px;
+        border-radius: 6px;
+        border: 1px solid #334155;
+        background: #1e293b;
+        color: #f8fafc;
+        cursor: pointer;
+      }
+      .glossary-item.selected {
+        border-color: #38bdf8;
+        background: #0c4a6e;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 6px;
+        border-bottom: 1px solid #1e293b;
+        font-size: 12px;
+      }
+      th {
+        color: #94a3b8;
+        font-weight: 600;
+      }
+      .preview-box {
+        margin-top: 14px;
+        padding: 12px;
+        border-radius: 8px;
+        background: #1e293b;
+        border: 1px solid #334155;
+      }
+      .preview-thai {
+        margin-top: 6px;
+        padding: 8px 12px;
+        border-left: 3px solid #38bdf8;
+        background: rgba(148, 163, 184, 0.1);
+        border-radius: 4px;
+      }
+      .preview-bubble {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-top: 10px;
+        padding: 8px 14px;
+        border-radius: 12px;
+        background: #ffffff;
+        color: #111111;
+        font-weight: 600;
+      }
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 10px;
+        margin: 12px 0;
+      }
+      .stat-tile {
+        background: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 8px;
+        padding: 10px 12px;
+      }
+      .stat-val {
+        font-size: 18px;
+        font-weight: 700;
+        color: #38bdf8;
+      }
+      .stat-label {
+        font-size: 11px;
         color: #94a3b8;
       }
     </style>
   </head>
   <body>
-    <main id="options-app">
-      <h1>Realtime EN→TH Translator Settings</h1>
-      <p id="options-status">Options UI scaffold ready — Phase 0</p>
-    </main>
+    <div class="container">
+      <header>
+        <h1>Realtime EN→TH Translator — Settings</h1>
+        <div id="options-status" class="toast">Loading settings...</div>
+      </header>
+
+      <!-- 1. Per-Series Glossary Manager -->
+      <section class="card">
+        <h2>1. Per-Series Glossaries (Names, Skills, Pronouns)</h2>
+        <div class="grid-2">
+          <div>
+            <button id="new-glossary-btn" class="btn btn-primary" style="width: 100%; margin-bottom: 8px" type="button">
+              + New Series Glossary
+            </button>
+            <div id="glossary-list" class="glossary-list"></div>
+          </div>
+
+          <div>
+            <div class="form-grid">
+              <div>
+                <label for="glossary-name">Series Name</label>
+                <input id="glossary-name" type="text" placeholder="Solo Leveling" />
+              </div>
+              <div>
+                <label for="glossary-pattern">URL Pattern (wildcard *)</label>
+                <input id="glossary-pattern" type="text" placeholder="*asuracomic.net/*solo-leveling*" />
+              </div>
+              <div>
+                <label for="glossary-preset">Default Tone Preset</label>
+                <select id="glossary-preset">
+                  <option value="modern_manhwa">Modern Manhwa (Casual)</option>
+                  <option value="fantasy_murim">Fantasy / Murim / Isekai</option>
+                  <option value="light_novel">Light Novel Prose</option>
+                  <option value="literal">Literal / Reading Aid</option>
+                </select>
+              </div>
+            </div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th style="width: 24%">English Term</th>
+                  <th style="width: 24%">Thai Target</th>
+                  <th style="width: 16%">Category</th>
+                  <th style="width: 28%">Pronoun / Style Note</th>
+                  <th style="width: 8%"></th>
+                </tr>
+              </thead>
+              <tbody id="glossary-rows"></tbody>
+            </table>
+
+            <div class="toolbar">
+              <button id="add-term-btn" class="btn" type="button">+ Add Term</button>
+              <button id="save-glossary-btn" class="btn btn-primary" type="button">Save Glossary</button>
+              <button id="delete-glossary-btn" class="btn btn-danger" type="button">Delete Glossary</button>
+              <button id="export-csv-btn" class="btn" type="button">Export CSV</button>
+              <button id="import-csv-btn" class="btn" type="button">Import CSV</button>
+              <button id="export-json-btn" class="btn" type="button">Export JSON</button>
+              <button id="import-json-btn" class="btn" type="button">Import JSON</button>
+              <input id="import-file-input" type="file" accept=".csv,.json,text/csv,application/json" style="display: none" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. Site Auto-Enable Whitelist -->
+      <section class="card">
+        <h2>2. Per-Site Auto-Enable Whitelist &amp; Mode Overrides</h2>
+        <div class="form-grid" style="align-items: end">
+          <div>
+            <label for="new-site-host">Add Hostname</label>
+            <input id="new-site-host" type="text" placeholder="asuracomic.net" />
+          </div>
+          <div>
+            <label for="new-site-mode">Mode Override</label>
+            <select id="new-site-mode">
+              <option value="auto">Auto Detect</option>
+              <option value="novel">Novel</option>
+              <option value="manhwa">Manhwa</option>
+            </select>
+          </div>
+          <div>
+            <button id="add-site-btn" class="btn btn-primary" type="button">+ Add Site</button>
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Hostname</th>
+              <th>Auto-Enable</th>
+              <th>Mode</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="whitelist-rows"></tbody>
+        </table>
+      </section>
+
+      <!-- 3. Thai Typography & Manhwa Overlay Controls -->
+      <section class="card">
+        <h2>3. Thai Typography &amp; Manhwa Overlay Appearance</h2>
+        <div class="form-grid">
+          <div>
+            <label for="typo-font">Thai Font Family</label>
+            <select id="typo-font">
+              <option value='"Sarabun", "Noto Sans Thai", "Tahoma", sans-serif'>Sarabun (Recommended)</option>
+              <option value='"Prompt", "Noto Sans Thai", "Tahoma", sans-serif'>Prompt</option>
+              <option value='"Noto Sans Thai", "Sarabun", "Tahoma", sans-serif'>Noto Sans Thai</option>
+              <option value='system-ui, "Tahoma", sans-serif'>System Default</option>
+            </select>
+          </div>
+          <div>
+            <label for="typo-size">Novel Font Size</label>
+            <input id="typo-size" type="text" value="0.95em" />
+          </div>
+          <div>
+            <label for="typo-line-height">Novel Line Height</label>
+            <input id="typo-line-height" type="number" step="0.05" min="1.1" max="2.5" value="1.65" />
+          </div>
+          <div>
+            <label for="typo-color">Novel Text Color (CSS or inherit)</label>
+            <input id="typo-color" type="text" value="inherit" />
+          </div>
+          <div>
+            <label for="typo-opacity">Manhwa Mask Opacity (<span id="opacity-val">0.98</span>)</label>
+            <input id="typo-opacity" type="range" min="0.5" max="1.0" step="0.02" value="0.98" />
+          </div>
+          <div>
+            <label for="typo-scale">Manhwa Font Scale (<span id="scale-val">1.00</span>x)</label>
+            <input id="typo-scale" type="range" min="0.75" max="1.35" step="0.05" value="1.0" />
+          </div>
+        </div>
+
+        <div class="preview-box">
+          <div style="color: #94a3b8; font-size: 12px">Live Preview:</div>
+          <div>"Arise," he whispered, activating Shadow Extraction.</div>
+          <div id="preview-thai" class="preview-thai" lang="th">
+            "จงตื่น" เขากระซิบพลางเปิดใช้งานทักษะสกัดเงา
+          </div>
+          <div>
+            <span id="preview-bubble" class="preview-bubble" lang="th">
+              เดี๋ยวนะ... นายเคลียร์เกตนั่นคนเดียวเลยเหรอ?
+            </span>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <button id="save-typo-btn" class="btn btn-primary" type="button">Save Typography</button>
+        </div>
+      </section>
+
+      <!-- 4. Local GPU Model & SQLite LRU Cache Controls -->
+      <section class="card">
+        <h2>4. Local Hugging Face Model &amp; Bounded SQLite Cache</h2>
+        <div class="form-grid">
+          <div>
+            <label for="cfg-server-url">Local Server URL (loopback only)</label>
+            <input id="cfg-server-url" type="text" value="http://127.0.0.1:8765" />
+          </div>
+          <div>
+            <label for="cfg-model-id">Hugging Face Model ID</label>
+            <input id="cfg-model-id" type="text" value="typhoon-ai/typhoon2.1-gemma3-12b" />
+          </div>
+          <div>
+            <label for="cfg-idle-min">Idle GPU Auto-Unload (minutes)</label>
+            <input id="cfg-idle-min" type="number" min="1" max="1440" value="15" />
+          </div>
+          <div>
+            <label for="cfg-cache-mb">SQLite Cache Max Size (MB)</label>
+            <input id="cfg-cache-mb" type="number" min="1" max="2048" value="50" />
+          </div>
+          <div>
+            <label for="cfg-cache-ttl">SQLite Cache TTL (days)</label>
+            <input id="cfg-cache-ttl" type="number" min="1" max="365" value="30" />
+          </div>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-tile">
+            <div id="stat-entries" class="stat-val">-</div>
+            <div class="stat-label">Cached Entries (Novel / Manhwa)</div>
+          </div>
+          <div class="stat-tile">
+            <div id="stat-size" class="stat-val">-</div>
+            <div class="stat-label">SQLite DB Size</div>
+          </div>
+          <div class="stat-tile">
+            <div id="stat-hitrate" class="stat-val">-</div>
+            <div class="stat-label">Session Hit Rate</div>
+          </div>
+        </div>
+        <div id="stat-db-path" style="font-size: 11px; color: #94a3b8"></div>
+
+        <div class="toolbar">
+          <button id="save-server-btn" class="btn btn-primary" type="button">Save Model &amp; Cache Settings</button>
+          <button id="refresh-cache-btn" class="btn" type="button">Refresh Stats</button>
+          <button id="clear-cache-btn" class="btn btn-danger" type="button">Clear Translation Cache</button>
+        </div>
+      </section>
+    </div>
+
     <script type="module" src="/src/options/main.ts"></script>
   </body>
 </html>

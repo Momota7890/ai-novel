@@ -1,12 +1,21 @@
 /**
- * Phase 1 Popup UI controller.
- * Controls active tab translation, displays live local server & GPU VRAM state,
- * and allows quick Load/Unload Model, Retry Failed, and Clear Page actions.
+ * Phase 3 Toolbar Popup UI controller.
+ * - Master Enable (Alt+T), Per-site Auto-enable Whitelist, Mode override
+ * - Tone Preset & Active Series Glossary selector (with URL auto-match)
+ * - Quick Snip (Alt+S), Peek (Alt+O), Retry Failed, Clear Page
+ * - Live Server/GPU/VRAM progress bar + idle auto-unload countdown + Unload GPU Now
  */
 
 import { apiClient } from "../shared/apiClient";
-import { getPreferences, savePreferences } from "../shared/storage";
+import { findMatchingGlossary } from "../shared/detector";
+import {
+  getPreferences,
+  getSiteRule,
+  savePreferences,
+  setSiteRule,
+} from "../shared/storage";
 import type {
+  GlossaryResponse,
   ModelStatusResponse,
   PresetId,
   TabControlMessage,
@@ -14,20 +23,24 @@ import type {
   TabStateSnapshot,
 } from "../shared/types";
 
-async function getActiveTabId(): Promise<number | null> {
+let currentHostname = "";
+let currentUrl = "";
+let cachedGlossaries: GlossaryResponse[] = [];
+
+async function getActiveTab(): Promise<chrome.tabs.Tab | null> {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-  return tabs[0]?.id ?? null;
+  return tabs[0] ?? null;
 }
 
 async function sendTabMessage(
   msg: TabControlMessage,
 ): Promise<TabStateSnapshot | null> {
-  const tabId = await getActiveTabId();
-  if (tabId === null) {
+  const tab = await getActiveTab();
+  if (tab?.id === undefined) {
     return null;
   }
   try {
-    const resp: unknown = await chrome.tabs.sendMessage(tabId, msg);
+    const resp: unknown = await chrome.tabs.sendMessage(tab.id, msg);
     if (resp && typeof resp === "object" && "enabled" in resp) {
       return resp as TabStateSnapshot;
     }
@@ -37,11 +50,53 @@ async function sendTabMessage(
   }
 }
 
+function formatIdleCountdown(status: ModelStatusResponse): string {
+  if (status.state !== "loaded") {
+    return "";
+  }
+  const totalSec = status.idle_unload_minutes * 60;
+  const remaining = Math.max(0, totalSec - status.idle_seconds);
+  const mins = Math.floor(remaining / 60);
+  const secs = remaining % 60;
+  return ` • Auto-unload in ${mins}m ${String(secs).padStart(2, "0")}s`;
+}
+
+function populateGlossarySelect(
+  doc: Document,
+  glossaries: GlossaryResponse[],
+  activeGlossaryId: string | null,
+  pageUrl: string,
+): void {
+  const select = doc.getElementById("glossary-select") as HTMLSelectElement | null;
+  if (!select) {
+    return;
+  }
+  const autoMatch = findMatchingGlossary(pageUrl, glossaries);
+  select.textContent = "";
+
+  const noneOpt = doc.createElement("option");
+  noneOpt.value = "";
+  noneOpt.textContent = "None (No Glossary)";
+  select.appendChild(noneOpt);
+
+  for (const g of glossaries) {
+    const opt = doc.createElement("option");
+    opt.value = g.id;
+    const tag = autoMatch?.id === g.id ? " [Auto]" : "";
+    opt.textContent = `${g.name} (${g.entries.length})${tag}`;
+    select.appendChild(opt);
+  }
+
+  select.value = activeGlossaryId ?? "";
+}
+
 function renderTabSnapshot(doc: Document, snapshot: TabStateSnapshot | null): void {
   const toggleBtn = doc.getElementById("toggle-btn") as HTMLButtonElement | null;
   const pageStats = doc.getElementById("page-stats");
   const modeSelect = doc.getElementById("mode-select") as HTMLSelectElement | null;
   const peekBtn = doc.getElementById("peek-btn") as HTMLButtonElement | null;
+  const autoCheck = doc.getElementById("auto-enable-check") as HTMLInputElement | null;
+  const autoLabel = doc.getElementById("auto-enable-label");
   if (!toggleBtn || !pageStats) {
     return;
   }
@@ -50,9 +105,16 @@ function renderTabSnapshot(doc: Document, snapshot: TabStateSnapshot | null): vo
     toggleBtn.textContent = "Unavailable on this page";
     toggleBtn.disabled = true;
     toggleBtn.classList.remove("active");
+    if (autoCheck) {
+      autoCheck.disabled = true;
+      autoCheck.checked = false;
+    }
     pageStats.textContent = "Open an English web novel or manhwa page to translate.";
     return;
   }
+
+  currentHostname = snapshot.hostname;
+  currentUrl = snapshot.url;
 
   toggleBtn.disabled = false;
   toggleBtn.classList.toggle("active", snapshot.enabled);
@@ -66,6 +128,15 @@ function renderTabSnapshot(doc: Document, snapshot: TabStateSnapshot | null): vo
   if (peekBtn) {
     peekBtn.textContent = snapshot.peekActive ? "Unpeek (Alt+O)" : "Peek (Alt+O)";
   }
+  if (autoCheck && currentHostname) {
+    autoCheck.disabled = false;
+    autoCheck.checked = snapshot.autoEnabledSite;
+  }
+  if (autoLabel && currentHostname) {
+    autoLabel.textContent = `Always enable on ${currentHostname}`;
+  }
+
+  populateGlossarySelect(doc, cachedGlossaries, snapshot.glossaryId, currentUrl);
 
   if (snapshot.resolvedMode === "manhwa") {
     pageStats.textContent =
@@ -95,24 +166,34 @@ function renderTabSnapshot(doc: Document, snapshot: TabStateSnapshot | null): vo
 function renderModelStatus(doc: Document, status: ModelStatusResponse): void {
   const badge = doc.getElementById("model-state-badge");
   const meta = doc.getElementById("model-meta");
+  const vramBar = doc.getElementById("vram-bar-fill");
   const loadBtn = doc.getElementById("load-model-btn") as HTMLButtonElement | null;
   const unloadBtn = doc.getElementById("unload-model-btn") as HTMLButtonElement | null;
 
   if (badge) {
     badge.textContent = status.state;
   }
+
+  if (vramBar) {
+    const pct =
+      status.vram_total_mb > 0
+        ? Math.min(100, Math.round((status.vram_allocated_mb / status.vram_total_mb) * 100))
+        : 0;
+    vramBar.style.width = `${pct}%`;
+    vramBar.classList.toggle("warn", pct >= 85);
+  }
+
   if (meta) {
     const vramLine =
       status.vram_total_mb > 0
         ? `VRAM: ${status.vram_allocated_mb.toLocaleString()} / ${status.vram_total_mb.toLocaleString()} MiB`
         : "CUDA unavailable (CPU mode)";
-    const idleLine =
-      status.state === "loaded"
-        ? ` • Auto-unload: ${status.idle_unload_minutes}m`
-        : "";
+    const visionTag = status.bubble_detector_loaded ? " • YOLO active" : "";
+    const idleLine = formatIdleCountdown(status);
     const errLine = status.last_error ? ` • Error: ${status.last_error}` : "";
-    meta.textContent = `${status.model_id} (${status.quantization}) — ${vramLine}${idleLine}${errLine}`;
+    meta.textContent = `${status.model_id} (${status.quantization}) — ${vramLine}${visionTag}${idleLine}${errLine}`;
   }
+
   if (loadBtn) {
     loadBtn.disabled = status.state === "loading" || status.state === "loaded";
   }
@@ -126,14 +207,17 @@ export async function refreshPopup(doc: Document = document): Promise<void> {
   const serverLabel = doc.getElementById("server-label");
   const modelBadge = doc.getElementById("model-state-badge");
   const modelMeta = doc.getElementById("model-meta");
+  const vramBar = doc.getElementById("vram-bar-fill");
   const loadBtn = doc.getElementById("load-model-btn") as HTMLButtonElement | null;
   const unloadBtn = doc.getElementById("unload-model-btn") as HTMLButtonElement | null;
 
   try {
-    const [health, modelStatus] = await Promise.all([
+    const [health, modelStatus, glossaryList] = await Promise.all([
       apiClient.getHealth(),
       apiClient.getModelStatus(),
+      apiClient.listGlossaries().catch(() => ({ glossaries: cachedGlossaries })),
     ]);
+    cachedGlossaries = glossaryList.glossaries;
     if (dot) {
       dot.className = "dot online";
     }
@@ -151,8 +235,11 @@ export async function refreshPopup(doc: Document = document): Promise<void> {
     if (modelBadge) {
       modelBadge.textContent = "offline";
     }
+    if (vramBar) {
+      vramBar.style.width = "0%";
+    }
     if (modelMeta) {
-      modelMeta.textContent = "Start local backend on http://127.0.0.1:8765.";
+      modelMeta.textContent = "Start local backend via start.bat (http://127.0.0.1:8765).";
     }
     if (loadBtn) {
       loadBtn.disabled = true;
@@ -168,12 +255,14 @@ export async function refreshPopup(doc: Document = document): Promise<void> {
 
 export async function initPopup(doc: Document = document): Promise<void> {
   const toggleBtn = doc.getElementById("toggle-btn") as HTMLButtonElement | null;
+  const autoCheck = doc.getElementById("auto-enable-check") as HTMLInputElement | null;
   const snipBtn = doc.getElementById("snip-btn") as HTMLButtonElement | null;
   const peekBtn = doc.getElementById("peek-btn") as HTMLButtonElement | null;
   const retryBtn = doc.getElementById("retry-btn") as HTMLButtonElement | null;
   const clearBtn = doc.getElementById("clear-btn") as HTMLButtonElement | null;
   const modeSelect = doc.getElementById("mode-select") as HTMLSelectElement | null;
   const presetSelect = doc.getElementById("preset-select") as HTMLSelectElement | null;
+  const glossarySelect = doc.getElementById("glossary-select") as HTMLSelectElement | null;
   const loadBtn = doc.getElementById("load-model-btn") as HTMLButtonElement | null;
   const unloadBtn = doc.getElementById("unload-model-btn") as HTMLButtonElement | null;
   const optionsBtn = doc.getElementById("options-btn") as HTMLButtonElement | null;
@@ -192,16 +281,64 @@ export async function initPopup(doc: Document = document): Promise<void> {
   toggleBtn?.addEventListener("click", () => {
     const preset = (presetSelect?.value as PresetId | undefined) ?? "light_novel";
     const modeOverride = (modeSelect?.value as TabModeOverride | undefined) ?? "auto";
-    void sendTabMessage({ type: "RT_TAB_TOGGLE", preset, modeOverride }).then((snap) => {
+    const glossaryId = glossarySelect?.value ? glossarySelect.value : null;
+    void sendTabMessage({
+      type: "RT_TAB_TOGGLE",
+      preset,
+      modeOverride,
+      glossaryId,
+    }).then((snap) => {
+      renderTabSnapshot(doc, snap);
+    });
+  });
+
+  autoCheck?.addEventListener("change", () => {
+    if (!currentHostname) {
+      return;
+    }
+    const autoEnable = autoCheck.checked;
+    const modeOverride = (modeSelect?.value as TabModeOverride | undefined) ?? "auto";
+    void setSiteRule(currentHostname, { autoEnable, modeOverride }).then(() => {
+      if (autoEnable) {
+        return sendTabMessage({ type: "RT_TAB_TOGGLE", enabled: true, modeOverride });
+      }
+      return sendTabMessage({ type: "RT_TAB_APPLY_PREFS" });
+    }).then((snap) => {
       renderTabSnapshot(doc, snap);
     });
   });
 
   modeSelect?.addEventListener("change", () => {
     const modeOverride = modeSelect.value as TabModeOverride;
-    void sendTabMessage({ type: "RT_TAB_SET_MODE", modeOverride }).then((snap) => {
-      renderTabSnapshot(doc, snap);
-    });
+    const updateSite = currentHostname
+      ? setSiteRule(currentHostname, { modeOverride })
+      : Promise.resolve(null);
+    void updateSite
+      .then(() => sendTabMessage({ type: "RT_TAB_SET_MODE", modeOverride }))
+      .then((snap) => {
+        renderTabSnapshot(doc, snap);
+      });
+  });
+
+  presetSelect?.addEventListener("change", () => {
+    const nextPreset = presetSelect.value as PresetId;
+    void savePreferences({ activePreset: nextPreset }).then(() =>
+      sendTabMessage({ type: "RT_TAB_APPLY_PREFS" }),
+    );
+  });
+
+  glossarySelect?.addEventListener("change", () => {
+    const glossaryId = glossarySelect.value ? glossarySelect.value : null;
+    const saveRule = currentHostname
+      ? getSiteRule(currentHostname).then((existing) =>
+          setSiteRule(currentHostname, { ...existing, glossaryId }),
+        )
+      : Promise.resolve(null);
+    void saveRule
+      .then(() => sendTabMessage({ type: "RT_TAB_SET_GLOSSARY", glossaryId }))
+      .then((snap) => {
+        renderTabSnapshot(doc, snap);
+      });
   });
 
   snipBtn?.addEventListener("click", () => {
@@ -226,11 +363,6 @@ export async function initPopup(doc: Document = document): Promise<void> {
     void sendTabMessage({ type: "RT_TAB_CLEAR_PAGE" }).then((snap) => {
       renderTabSnapshot(doc, snap);
     });
-  });
-
-  presetSelect?.addEventListener("change", () => {
-    const nextPreset = presetSelect.value as PresetId;
-    void savePreferences({ activePreset: nextPreset });
   });
 
   loadBtn?.addEventListener("click", () => {

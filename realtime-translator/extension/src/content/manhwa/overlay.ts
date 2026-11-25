@@ -109,6 +109,7 @@ export class ManhwaOverlayManager {
   private readonly records = new Map<HTMLImageElement, OverlayRecord>();
   private resizeObserver: ResizeObserver | null = null;
   private readonly onWindowResize: () => void;
+  private fontScale = 1.0;
 
   constructor(doc: Document = document, win: Window = window) {
     this.doc = doc;
@@ -225,11 +226,12 @@ export class ManhwaOverlayManager {
       el.style.color = bubble.text_color;
 
       const segmented = segmentThaiText(bubble.translated_text);
-      const fontSize = computeFittedFontSize(
+      const baseFontSize = computeFittedFontSize(
         segmented,
         boxWFrac * imgW,
         boxHFrac * imgH,
       );
+      const fontSize = Math.max(9, Math.min(28, Math.round(baseFontSize * this.fontScale * 2) / 2));
       el.style.fontSize = `${fontSize}px`;
 
       const textNode = this.doc.createElement("span");
@@ -287,14 +289,24 @@ export class ManhwaOverlayManager {
           continue;
         }
         const [x1, y1, x2, y2] = bubble.bbox;
-        const fitted = computeFittedFontSize(
+        const baseFitted = computeFittedFontSize(
           bubble.translated_text,
           Math.max(0.01, x2 - x1) * width,
           Math.max(0.005, y2 - y1) * height,
         );
+        const fitted = Math.max(9, Math.min(28, Math.round(baseFitted * this.fontScale * 2) / 2));
         boxEl.style.fontSize = `${fitted}px`;
       }
     }
+  }
+
+  setFontScale(scale: number): void {
+    const clamped = Math.max(0.7, Math.min(1.4, scale));
+    if (clamped === this.fontScale) {
+      return;
+    }
+    this.fontScale = clamped;
+    this.repositionAll();
   }
 
   repositionAll(): void {

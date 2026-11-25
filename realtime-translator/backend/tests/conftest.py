@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 from app.config import QuantizationMode, Settings
 from app.main import create_app
 from app.services.cache_store import CacheStore
+from app.services.glossary_store import GlossaryStore
 from app.services.manhwa_pipeline import ManhwaPipeline
 from app.services.model_manager import LoadedLLM, ModelManager
 from app.services.prompt_builder import SessionContextStore
@@ -105,6 +106,7 @@ class MockBackendHarness:
     app: FastAPI
     settings: Settings
     cache_store: CacheStore
+    glossary_store: GlossaryStore
     model_manager: ModelManager
     context_store: SessionContextStore
     translator: TranslatorService
@@ -178,6 +180,7 @@ def build_mock_harness(
         max_bytes_override=max_bytes_override,
         clock=clock,
     )
+    glossary_store = GlossaryStore(db_path=db_path, clock=clock)
 
     load_calls: list[tuple[str, QuantizationMode]] = []
     generate_calls: list[list[dict[str, str]]] = []
@@ -230,10 +233,12 @@ def build_mock_harness(
         translator=translator,
         bubble_detector=bubble_detector,
         ocr_engine=ocr_engine,
+        glossary_store=glossary_store,
     )
     app = create_app(
         settings=settings,
         cache_store=cache_store,
+        glossary_store=glossary_store,
         model_manager=model_manager,
         context_store=context_store,
         translator=translator,
@@ -247,6 +252,7 @@ def build_mock_harness(
         app=app,
         settings=settings,
         cache_store=cache_store,
+        glossary_store=glossary_store,
         model_manager=model_manager,
         context_store=context_store,
         translator=translator,
@@ -264,6 +270,7 @@ def build_mock_harness(
 def harness(tmp_path: Path) -> MockBackendHarness:
     h = build_mock_harness(tmp_path)
     yield h
+    h.glossary_store.close()
     h.cache_store.close()
 
 

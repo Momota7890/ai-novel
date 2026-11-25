@@ -202,34 +202,34 @@ realtime-translator/
 **Objective:** Elevate Thai translation consistency to chapter-grade quality and add all daily-driver ergonomics.
 
 #### Backend Tasks
-- [ ] **3.1** Implement full `prompt_builder.py` with 4 built-in **Genre Tone Presets**:
+- [x] **3.1** Implement full `prompt_builder.py` with 4 built-in **Genre Tone Presets**:
   - `modern_manhwa` — Casual contemporary Thai dialogue (*ฉัน/นาย/เธอ/ผม/แก/พี่/น้อง*), punchy short bubbles.
   - `fantasy_murim` — Fantasy / Isekai / Murim / Regression register (*ข้า/เจ้า/ท่าน/ผู้น้อย/ศิษย์พี่/วิชายุทธ์*).
   - `light_novel` — Smooth literary Thai novel prose with natural narrative cadence.
   - `literal` — Faithful closer-to-source Thai for checking English phrasing.
-- [ ] **3.2** Implement **automatic rolling context**: in-memory per-`session_id` ring buffer storing the last 6–10 translated EN/TH pairs (bounded by token budget ~600 tokens) passed as prior context so character pronouns and ongoing conversations stay consistent across scrolls and consecutive strips. Include `/session/{session_id}/reset` when changing chapters.
-- [ ] **3.3** Implement `glossary_store.py` + `/glossaries` CRUD endpoints:
+- [x] **3.2** Implement **automatic rolling context**: in-memory per-`session_id` ring buffer storing the last 6–10 translated EN/TH pairs (bounded by token budget ~600 tokens) passed as prior context so character pronouns and ongoing conversations stay consistent across scrolls and consecutive strips. Include `/session/{session_id}/reset` when changing chapters.
+- [x] **3.3** Implement `glossary_store.py` + `/glossaries` CRUD endpoints:
   - Per-series / per-URL-pattern glossary records (`series_key`, `default_preset`, `entries: [{source, target, category, note}]`).
   - Smart prompt filtering: only inject glossary entries whose `source` term actually appears (case-insensitive) in the current batch or recent context, saving prompt tokens and preventing hallucinated overrides.
-- [ ] **3.4** Implement **automatic idle GPU unload** in `model_manager.py`:
+- [x] **3.4** Implement **automatic idle GPU unload** in `model_manager.py`:
   - Background async watchdog checks `last_used_at` every 30s.
   - After `IDLE_UNLOAD_MINUTES` (default 15, configurable), deletes model references, runs `gc.collect()` + `torch.cuda.empty_cache()`, freeing all ~10–11 GB VRAM for games/apps.
   - Next translation request transparently reloads the model (extension shows "Loading model onto GPU..." toast during cold reload).
-- [ ] **3.5** Write `start.bat`: checks `.venv`, sets `HF_HOME=D:\hf_cache` (or `.env`), starts `uvicorn app.main:app --host 127.0.0.1 --port 8765`, prints clear status URL and troubleshooting hints.
+- [x] **3.5** Write `start.bat`: checks `.venv`, sets `HF_HOME=D:\hf_cache` (or `.env`), starts `uvicorn app.main:app --host 127.0.0.1 --port 8765`, prints clear status URL and troubleshooting hints.
 
 #### Extension Tasks
-- [ ] **3.6** Implement `shared/detector.ts` + **Per-site Auto-enable Whitelist**:
+- [x] **3.6** Implement `shared/detector.ts` + **Per-site Auto-enable Whitelist**:
   - Auto-detects page mode (`novel` vs. `manhwa`) via DOM heuristics (tall stacked images vs. high paragraph word-density).
   - Popup includes **"Always enable on this site"** toggle + **1-click Novel / Manhwa mode override** persisted per hostname.
-- [ ] **3.7** Upgrade `popup/` UI:
+- [x] **3.7** Upgrade `popup/` UI:
   - Master Enable toggle (`Alt+T`), Mode selector (`Auto / Novel / Manhwa`), Active Tone Preset dropdown, Active Series Glossary selector, Manual Snip (`Alt+S`), Peek Original (`Alt+O`), live Server/GPU/VRAM badge, and **Unload GPU Now** button.
-- [ ] **3.8** Build `options/` full settings page:
+- [x] **3.8** Build `options/` full settings page:
   - **Glossary Manager:** create/edit/delete series glossaries, bind URL pattern/domain, add/import/export CSV/JSON term rows (`source`, `target`, `pronoun/name/skill` note).
   - **Typography & Overlay Controls:** Thai font picker (`Sarabun`, `Prompt`, `Noto Sans Thai`, system default), novel font size/color/line-height, manhwa mask opacity & font scale, peek hotkey config.
   - **Model & Cache Controls:** view/change Hugging Face `MODEL_ID`, set idle unload timeout (minutes), view SQLite cache size/hit rate, configure max MB / TTL days, **Clear Cache** button.
 
 #### Phase 3 Verification
-- [ ] **Automated (`pytest`):** `test_prompt_builder.py` (all 4 presets, selective glossary matching, context truncation) and `test_model_lifecycle.py` (idle timeout triggers unload + CUDA cache clear; concurrent request during reload waits cleanly).
+- [x] **Automated (`pytest`):** `test_prompt_builder.py` (all 4 presets, selective glossary matching, context truncation) and `test_model_lifecycle.py` (idle timeout triggers unload + CUDA cache clear; concurrent request during reload waits cleanly).
 - [ ] **Chrome/Edge Manual Checklist:**
   - Switch preset from `modern_manhwa` to `fantasy_murim` and re-translate → pronouns shift cleanly (*ฉัน/นาย* → *ข้า/เจ้า*).
   - Add a character name & skill to a series glossary → verify exact Thai rendering across both novel paragraphs and manhwa bubbles.

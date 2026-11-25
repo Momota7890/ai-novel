@@ -199,7 +199,8 @@ def build_batch_messages(
         "Rules:",
         "1. Translate every input item accurately into natural Thai. Do not omit, merge, split, or add items.",
         "2. Keep character names, pronouns, and speaker tone consistent with any provided context or glossary.",
-        "3. Return ONLY valid JSON matching exactly this schema with no markdown fences or extra commentary:",
+        "3. Never blend English letters inside Thai words (e.g., avoid 'ด้ามดaggers'); translate ordinary English nouns into clean Thai while preserving ranks/stats like E-rank, HP, MP naturally.",
+        "4. Return ONLY valid JSON matching exactly this schema with no markdown fences or extra commentary:",
         '{"translations":[{"id":"<exact input id>","th":"<Thai translation>"}]}',
     ]
 
