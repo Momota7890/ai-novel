@@ -10,10 +10,16 @@ import type {
   ApiRequestMessage,
   CacheClearResponse,
   CacheStatsResponse,
+  CaptureVisibleTabData,
+  CaptureVisibleTabMessage,
   ErrorCode,
   ErrorDetail,
+  FetchImageBase64Data,
+  FetchImageBase64Message,
   HealthResponse,
   HttpMethod,
+  ManhwaTranslateRequest,
+  ManhwaTranslateResponse,
   ModelLoadRequest,
   ModelStatusResponse,
   ModelUnloadResponse,
@@ -23,6 +29,8 @@ import type {
   SessionResetResponse,
   SettingsPatchRequest,
   SettingsResponse,
+  SnipTranslateRequest,
+  SnipTranslateResponse,
 } from "./types";
 
 export class ApiClientError extends Error {
@@ -215,6 +223,132 @@ export const apiClient = {
       body,
       signal,
     });
+  },
+
+  translateManhwa(
+    body: ManhwaTranslateRequest,
+    signal?: AbortSignal,
+  ): Promise<ManhwaTranslateResponse> {
+    return sendApiRequest<ManhwaTranslateResponse>("/translate/manhwa", {
+      method: "POST",
+      body,
+      signal,
+    });
+  },
+
+  translateSnip(
+    body: SnipTranslateRequest,
+    signal?: AbortSignal,
+  ): Promise<SnipTranslateResponse> {
+    return sendApiRequest<SnipTranslateResponse>("/translate/snip", {
+      method: "POST",
+      body,
+      signal,
+    });
+  },
+
+  async fetchImageBase64(
+    url: string,
+    signal?: AbortSignal,
+  ): Promise<FetchImageBase64Data> {
+    if (signal?.aborted) {
+      throw createAbortError();
+    }
+    const requestId = createRequestId();
+    const payload: FetchImageBase64Message = {
+      type: "FETCH_IMAGE_BASE64",
+      requestId,
+      url,
+    };
+
+    return new Promise<FetchImageBase64Data>((resolve, reject) => {
+      let settled = false;
+      const cleanup = (): void => {
+        if (signal) {
+          signal.removeEventListener("abort", onAbort);
+        }
+      };
+      const onAbort = (): void => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        cleanup();
+        const abortMsg: ApiAbortMessage = { type: "API_ABORT", requestId };
+        void chrome.runtime.sendMessage(abortMsg).catch(() => {});
+        reject(createAbortError());
+      };
+
+      if (signal) {
+        signal.addEventListener("abort", onAbort, { once: true });
+      }
+
+      chrome.runtime
+        .sendMessage(payload)
+        .then((raw: unknown) => {
+          if (settled) {
+            return;
+          }
+          settled = true;
+          cleanup();
+          const resp = raw as ApiProxyResponse<FetchImageBase64Data> | undefined;
+          if (!resp || typeof resp !== "object" || typeof resp.ok !== "boolean") {
+            reject(
+              new ApiClientError(
+                {
+                  code: "NETWORK_ERROR",
+                  message: "Background worker failed to fetch manhwa image.",
+                  retryable: true,
+                },
+                0,
+              ),
+            );
+            return;
+          }
+          if (resp.ok) {
+            resolve(resp.data);
+          } else {
+            reject(new ApiClientError(resp.error, resp.status));
+          }
+        })
+        .catch((err: unknown) => {
+          if (settled) {
+            return;
+          }
+          settled = true;
+          cleanup();
+          reject(
+            new ApiClientError(
+              {
+                code: "NETWORK_ERROR",
+                message: err instanceof Error ? err.message : "Image fetch failed.",
+                retryable: true,
+              },
+              0,
+            ),
+          );
+        });
+    });
+  },
+
+  async captureVisibleTab(): Promise<CaptureVisibleTabData> {
+    const payload: CaptureVisibleTabMessage = { type: "CAPTURE_VISIBLE_TAB" };
+    const raw: unknown = await chrome.runtime.sendMessage(payload);
+    const resp = raw as ApiProxyResponse<CaptureVisibleTabData> | undefined;
+    if (!resp || typeof resp !== "object" || typeof resp.ok !== "boolean") {
+      throw new ApiClientError(
+        {
+          code: "NETWORK_ERROR",
+          message: "Could not capture visible tab screenshot.",
+          retryable: false,
+        },
+        0,
+      );
+    }
+    if (!resp.ok) {
+      throw new ApiClientError(resp.error, resp.status);
+    }
+    return resp.data;
   },
 
   resetSession(

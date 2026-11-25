@@ -1,5 +1,5 @@
 /**
- * Content script coordinator (Phase 1: Web Novel Bilingual Inline MVP).
+ * Content script coordinator (Phase 1 Web Novel + Phase 2 Vertical Manhwa & Alt+S Snip).
  * Compiled as a self-contained IIFE to `dist/content.js`.
  */
 
@@ -7,9 +7,14 @@ import { apiClient } from "../shared/apiClient";
 import { getPreferences } from "../shared/storage";
 import type {
   PresetId,
+  ResolvedPageMode,
   TabControlMessage,
+  TabModeOverride,
   TabStateSnapshot,
 } from "../shared/types";
+import { ManhwaPageController } from "./manhwa/controller";
+import { scanManhwaStrips } from "./manhwa/imageScanner";
+import { ManhwaSnipTool } from "./manhwa/snipTool";
 import { extractNovelParagraphs } from "./novel/extractor";
 import { NovelRenderer } from "./novel/renderer";
 import { NovelTranslationScheduler } from "./novel/scheduler";
@@ -25,18 +30,58 @@ function buildSessionId(loc: Location = window.location): string {
   return `page-${loc.hostname}-${cleanPath || "root"}`;
 }
 
-class NovelPageController {
-  private readonly renderer = new NovelRenderer(document);
-  private scheduler: NovelTranslationScheduler | null = null;
+function inferPageMode(doc: Document = document): ResolvedPageMode {
+  const strips = scanManhwaStrips(doc);
+  const paragraphs = extractNovelParagraphs(doc);
+  const totalWords = paragraphs.reduce(
+    (sum, p) => sum + p.text.split(/\s+/).filter(Boolean).length,
+    0,
+  );
+  if (strips.length >= 2 && totalWords < 250) {
+    return "manhwa";
+  }
+  if (strips.length >= 1 && paragraphs.length < 3) {
+    return "manhwa";
+  }
+  return "novel";
+}
+
+class PageTranslatorCoordinator {
+  private readonly novelRenderer = new NovelRenderer(document);
+  private novelScheduler: NovelTranslationScheduler | null = null;
+  private novelInitialized = false;
+
+  private readonly manhwaController = new ManhwaPageController(document, window);
+  private readonly snipTool: ManhwaSnipTool;
+
   private enabled = false;
-  private initialized = false;
+  private modeOverride: TabModeOverride = "auto";
+  private resolvedMode: ResolvedPageMode = "novel";
   private preset: PresetId = "light_novel";
   private sessionId = buildSessionId();
   private lastUrl = window.location.href;
 
-  async toggle(forceEnabled?: boolean, overridePreset?: PresetId): Promise<TabStateSnapshot> {
+  constructor() {
+    this.snipTool = new ManhwaSnipTool(
+      {
+        getSessionId: () => this.sessionId,
+        getPreset: () => this.preset,
+      },
+      document,
+      window,
+    );
+  }
+
+  async toggle(
+    forceEnabled?: boolean,
+    overridePreset?: PresetId,
+    overrideMode?: TabModeOverride,
+  ): Promise<TabStateSnapshot> {
     if (overridePreset) {
       this.preset = overridePreset;
+    }
+    if (overrideMode) {
+      this.modeOverride = overrideMode;
     }
 
     const nextEnabled = forceEnabled ?? !this.enabled;
@@ -48,58 +93,99 @@ class NovelPageController {
     return this.getSnapshot();
   }
 
+  async setModeOverride(nextMode: TabModeOverride): Promise<TabStateSnapshot> {
+    this.modeOverride = nextMode;
+    const wasEnabled = this.enabled;
+    if (wasEnabled) {
+      this.disable();
+      await this.enable();
+    } else {
+      this.resolvedMode =
+        nextMode === "auto" ? inferPageMode(document) : nextMode;
+    }
+    return this.getSnapshot();
+  }
+
   async enable(): Promise<void> {
     const prefs = await getPreferences().catch(() => null);
     if (prefs) {
-      this.renderer.applyTypography(prefs.typography);
+      this.novelRenderer.applyTypography(prefs.typography);
       this.preset = prefs.activePreset;
     }
 
     this.checkChapterNavigation();
+    this.resolvedMode =
+      this.modeOverride === "auto" ? inferPageMode(document) : this.modeOverride;
 
-    if (this.initialized && this.scheduler) {
-      // Non-destructive instant show without re-translating already-rendered paragraphs.
-      this.enabled = true;
-      this.renderer.setHidden(false);
-      this.scheduler.setConfig({
+    this.enabled = true;
+    this.novelRenderer.setHidden(false);
+
+    if (this.resolvedMode === "manhwa") {
+      this.novelScheduler?.stop();
+      this.manhwaController.setConfig({
         sessionId: this.sessionId,
         preset: this.preset,
       });
-      this.scheduler.resume();
+      this.manhwaController.start();
+      return;
+    }
+
+    this.manhwaController.stop();
+    if (this.novelInitialized && this.novelScheduler) {
+      this.novelScheduler.setConfig({
+        sessionId: this.sessionId,
+        preset: this.preset,
+      });
+      this.novelScheduler.resume();
       return;
     }
 
     const paragraphs = extractNovelParagraphs(document);
-    this.scheduler = new NovelTranslationScheduler(this.renderer, {
+    this.novelScheduler = new NovelTranslationScheduler(this.novelRenderer, {
       sessionId: this.sessionId,
       preset: this.preset,
       batchSize: 4,
     });
-    this.enabled = true;
-    this.initialized = true;
-    this.renderer.setHidden(false);
-    this.scheduler.start(paragraphs);
+    this.novelInitialized = true;
+    this.novelScheduler.start(paragraphs);
   }
 
   disable(): void {
     this.enabled = false;
-    this.scheduler?.stop();
-    this.renderer.setHidden(true);
+    this.novelScheduler?.stop();
+    this.manhwaController.stop();
+    this.novelRenderer.setHidden(true);
+  }
+
+  togglePeek(forceActive?: boolean): TabStateSnapshot {
+    this.manhwaController.togglePeek(forceActive);
+    return this.getSnapshot();
+  }
+
+  activateSnip(): TabStateSnapshot {
+    this.snipTool.activate();
+    return this.getSnapshot();
   }
 
   retryFailed(): TabStateSnapshot {
-    if (this.enabled && this.scheduler) {
-      this.scheduler.retryAllFailed();
+    if (this.enabled) {
+      if (this.resolvedMode === "manhwa") {
+        this.manhwaController.retryAllFailed();
+      } else {
+        this.novelScheduler?.retryAllFailed();
+      }
     }
     return this.getSnapshot();
   }
 
   clearPage(): TabStateSnapshot {
     this.enabled = false;
-    this.initialized = false;
-    this.scheduler?.stop();
-    this.scheduler = null;
-    this.renderer.clearAll();
+    this.novelInitialized = false;
+    this.novelScheduler?.stop();
+    this.novelScheduler = null;
+    this.novelRenderer.clearAll();
+    this.manhwaController.clearAll();
+    this.snipTool.dismissCard();
     void apiClient.resetSession(this.sessionId).catch(() => {
       // Ignore if backend is offline.
     });
@@ -107,18 +193,34 @@ class NovelPageController {
   }
 
   getSnapshot(): TabStateSnapshot {
-    const stats = this.scheduler?.getStats() ?? {
+    const novelStats = this.novelScheduler?.getStats() ?? {
       totalParagraphs: 0,
       translatedCount: 0,
       pendingCount: 0,
       failedCount: 0,
     };
+    const manhwaStats = this.manhwaController.getStats();
+
     return {
       enabled: this.enabled,
-      hidden: this.renderer.isHidden(),
+      hidden: this.novelRenderer.isHidden(),
+      peekActive: this.manhwaController.isPeekActive(),
+      modeOverride: this.modeOverride,
+      resolvedMode: this.resolvedMode,
       preset: this.preset,
       sessionId: this.sessionId,
-      ...stats,
+      totalParagraphs: novelStats.totalParagraphs,
+      translatedCount: novelStats.translatedCount,
+      pendingCount:
+        this.resolvedMode === "manhwa"
+          ? manhwaStats.pendingCount
+          : novelStats.pendingCount,
+      failedCount:
+        this.resolvedMode === "manhwa"
+          ? manhwaStats.failedCount
+          : novelStats.failedCount,
+      totalImages: manhwaStats.totalImages,
+      translatedImages: manhwaStats.translatedImages,
     };
   }
 
@@ -129,10 +231,12 @@ class NovelPageController {
     const previousSession = this.sessionId;
     this.lastUrl = window.location.href;
     this.sessionId = buildSessionId();
-    this.initialized = false;
-    this.scheduler?.stop();
-    this.scheduler = null;
-    this.renderer.clearAll();
+    this.novelInitialized = false;
+    this.novelScheduler?.stop();
+    this.novelScheduler = null;
+    this.novelRenderer.clearAll();
+    this.manhwaController.clearAll();
+    this.snipTool.dismissCard();
     void apiClient.resetSession(previousSession).catch(() => {
       // Ignore if backend is offline.
     });
@@ -152,7 +256,7 @@ function isTabControlMessage(value: unknown): value is TabControlMessage {
 if (typeof document !== "undefined" && document.documentElement) {
   markContentReady(document.documentElement);
 
-  const controller = new NovelPageController();
+  const coordinator = new PageTranslatorCoordinator();
 
   if (typeof chrome !== "undefined" && chrome.runtime?.onMessage) {
     chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
@@ -162,31 +266,54 @@ if (typeof document !== "undefined" && document.documentElement) {
 
       if (message.type === "RT_COMMAND") {
         if (message.command === "toggle-translate") {
-          void controller.toggle().then(sendResponse);
+          void coordinator.toggle().then(sendResponse);
           return true;
+        }
+        if (message.command === "peek-original") {
+          sendResponse(coordinator.togglePeek());
+          return false;
+        }
+        if (message.command === "snip-region") {
+          sendResponse(coordinator.activateSnip());
+          return false;
         }
         return false;
       }
 
       if (message.type === "RT_TAB_GET_STATE") {
-        sendResponse(controller.getSnapshot());
+        sendResponse(coordinator.getSnapshot());
         return false;
       }
 
       if (message.type === "RT_TAB_TOGGLE") {
-        void controller
-          .toggle(message.enabled, message.preset)
+        void coordinator
+          .toggle(message.enabled, message.preset, message.modeOverride)
           .then(sendResponse);
         return true;
       }
 
+      if (message.type === "RT_TAB_SET_MODE") {
+        void coordinator.setModeOverride(message.modeOverride).then(sendResponse);
+        return true;
+      }
+
+      if (message.type === "RT_TAB_PEEK") {
+        sendResponse(coordinator.togglePeek(message.active));
+        return false;
+      }
+
+      if (message.type === "RT_TAB_SNIP") {
+        sendResponse(coordinator.activateSnip());
+        return false;
+      }
+
       if (message.type === "RT_TAB_RETRY_FAILED") {
-        sendResponse(controller.retryFailed());
+        sendResponse(coordinator.retryFailed());
         return false;
       }
 
       if (message.type === "RT_TAB_CLEAR_PAGE") {
-        sendResponse(controller.clearPage());
+        sendResponse(coordinator.clearPage());
         return false;
       }
 

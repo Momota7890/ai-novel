@@ -113,6 +113,60 @@ export interface SessionResetResponse {
   cleared: boolean;
 }
 
+export type RenderMode = "mask" | "pill";
+
+export interface ManhwaTranslateRequest {
+  session_id: string;
+  preset: PresetId;
+  glossary_id?: string | null;
+  bypass_cache?: boolean;
+  image_id: string;
+  image_base64: string;
+  image_mime: string;
+}
+
+export interface ManhwaTimingsMs {
+  detect: number;
+  ocr: number;
+  translate: number;
+  total: number;
+}
+
+export interface BubbleOverlay {
+  id: string;
+  reading_order: number;
+  bbox: [number, number, number, number];
+  render_mode: RenderMode;
+  bg_color: string;
+  text_color: string;
+  source_text: string;
+  translated_text: string;
+}
+
+export interface ManhwaTranslateResponse {
+  image_id: string;
+  image_width: number;
+  image_height: number;
+  slices_processed: number;
+  cached: boolean;
+  timings_ms: ManhwaTimingsMs;
+  bubbles: BubbleOverlay[];
+}
+
+export interface SnipTranslateRequest {
+  session_id: string;
+  preset: PresetId;
+  glossary_id?: string | null;
+  image_base64: string;
+  image_mime: string;
+}
+
+export interface SnipTranslateResponse {
+  source_text: string;
+  translated_text: string;
+  latency_ms: number;
+}
+
 export interface CacheStatsResponse {
   db_path: string;
   total_entries: number;
@@ -145,6 +199,25 @@ export interface ApiAbortMessage {
   requestId: string;
 }
 
+export interface FetchImageBase64Message {
+  type: "FETCH_IMAGE_BASE64";
+  requestId: string;
+  url: string;
+}
+
+export interface FetchImageBase64Data {
+  image_base64: string;
+  image_mime: string;
+}
+
+export interface CaptureVisibleTabMessage {
+  type: "CAPTURE_VISIBLE_TAB";
+}
+
+export interface CaptureVisibleTabData {
+  dataUrl: string;
+}
+
 export interface ApiProxySuccess<T = unknown> {
   ok: true;
   status: number;
@@ -170,10 +243,28 @@ export interface TabGetStateMessage {
   type: "RT_TAB_GET_STATE";
 }
 
+export type TabModeOverride = "auto" | "novel" | "manhwa";
+export type ResolvedPageMode = "novel" | "manhwa";
+
 export interface TabToggleMessage {
   type: "RT_TAB_TOGGLE";
   enabled?: boolean;
   preset?: PresetId;
+  modeOverride?: TabModeOverride;
+}
+
+export interface TabSetModeMessage {
+  type: "RT_TAB_SET_MODE";
+  modeOverride: TabModeOverride;
+}
+
+export interface TabPeekMessage {
+  type: "RT_TAB_PEEK";
+  active?: boolean;
+}
+
+export interface TabSnipMessage {
+  type: "RT_TAB_SNIP";
 }
 
 export interface TabRetryFailedMessage {
@@ -188,16 +279,24 @@ export type TabControlMessage =
   | TabCommandMessage
   | TabGetStateMessage
   | TabToggleMessage
+  | TabSetModeMessage
+  | TabPeekMessage
+  | TabSnipMessage
   | TabRetryFailedMessage
   | TabClearPageMessage;
 
 export interface TabStateSnapshot {
   enabled: boolean;
   hidden: boolean;
+  peekActive: boolean;
+  modeOverride: TabModeOverride;
+  resolvedMode: ResolvedPageMode;
   preset: PresetId;
   sessionId: string;
   totalParagraphs: number;
   translatedCount: number;
   pendingCount: number;
   failedCount: number;
+  totalImages: number;
+  translatedImages: number;
 }

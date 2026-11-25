@@ -97,3 +97,20 @@ def test_hf_cache_writable() -> None:
     finally:
         if probe.exists():
             probe.unlink()
+
+
+@pytest.mark.gpu
+def test_phase2_cv_ocr_imports_and_cpu_rapidocr(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify ultralytics, cv2, and CPU-only RapidOCR import and run without touching GPU VRAM."""
+    monkeypatch.setenv("YOLO_CONFIG_DIR", str(tmp_path / "ultralytics"))
+    import cv2
+    import numpy as np
+    from rapidocr_onnxruntime import RapidOCR
+    import ultralytics
+
+    assert ultralytics.__version__
+    assert cv2.__version__
+
+    ocr = RapidOCR(det_use_cuda=False, cls_use_cuda=False, rec_use_cuda=False)
+    blank = np.full((64, 160, 3), 255, dtype=np.uint8)
+    _res, _elapse = ocr(blank)

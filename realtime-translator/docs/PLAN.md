@@ -155,39 +155,39 @@ realtime-translator/
 **Objective:** Deliver real-time **on-image bubble translation** optimized specifically for **vertical long-strip manhwa / webtoons**, plus the **manual region-snip fallback**.
 
 #### Backend Tasks
-- [ ] **2.1** Install Phase 2 CV/OCR packages into `.venv` (`ultralytics`, `rapidocr-onnxruntime`, `opencv-python-headless`) and verify Hugging Face download of `ogkalu/comic-speech-bubble-detector-yolov8m` into `D:\hf_cache`.
-- [ ] **2.2** Implement `strip_slicer.py`:
+- [x] **2.1** Install Phase 2 CV/OCR packages into `.venv` (`ultralytics`, `rapidocr-onnxruntime`, `opencv-python-headless`) and verify Hugging Face download of `ogkalu/comic-speech-bubble-detector-yolov8m` into `D:\hf_cache`.
+- [x] **2.2** Implement `strip_slicer.py`:
   - Detect tall vertical strips (`height > 1.8 * width`) and split into overlapping horizontal slices (default slice height `1400px`, overlap `250px`).
   - Run cross-tile deduplication / IoU merging so bubbles straddling a slice boundary are never duplicated or cut in half.
   - Sort final bubbles in **manhwa reading order: top-to-bottom, then left-to-right** (grouping vertically proximate bubbles into rows).
-- [ ] **2.3** Implement `bubble_detector.py`:
+- [x] **2.3** Implement `bubble_detector.py`:
   - Run YOLOv8 speech-bubble detector (dialogue bubbles + narration boxes only; naturally skips painted background SFX).
   - Compute each bubble's **mask style**: sample perimeter/interior pixel variance to classify clean solid-fill bubbles (white/black/tinted — return exact `bg_color` + high-contrast `text_color`) vs. high-variance/floating text (return `render_mode: "pill"` for subtle semi-transparent badge).
-- [ ] **2.4** Implement `ocr_engine.py`:
+- [x] **2.4** Implement `ocr_engine.py`:
   - Run `RapidOCR` (English ONNX on CPU/ORT — 0 GPU VRAM contention with Typhoon 12B) on padded bubble crops.
   - Merge multi-line OCR segments within each bubble into clean single English sentences (de-hyphenating wrapped words, normalizing ALL-CAPS comic lettering cleanly so the LLM translates tone naturally instead of shouting everything).
   - Drop empty/noise/SFX-only false positives (e.g., 1–2 non-word symbols).
-- [ ] **2.5** Implement `manhwa_pipeline.py` & `/translate/manhwa` + `/translate/snip`:
+- [x] **2.5** Implement `manhwa_pipeline.py` & `/translate/manhwa` + `/translate/snip`:
   - Hash image bytes/slice region for SQLite cache lookup (stores ONLY tiny bubble bounding boxes + English/Thai JSON — never image binaries).
   - Batch all bubbles in a strip/viewport slice into a single Typhoon 12B call with conversational order so replies match previous bubbles.
   - `/translate/snip`: accept a cropped region PNG/WebP from the manual snip tool, run OCR directly (skipping bubble filter so even stylized/canvas/outside-bubble text always translates!) + translate to Thai.
 
 #### Extension Tasks
-- [ ] **2.6** Implement `background/serviceWorker.ts` image fetcher: download `<img>` bytes via background fetch with page cookies/Referer (bypassing canvas taint / CDN CORS restrictions), falling back to `chrome.tabs.captureVisibleTab` crop when an image is rendered inside `<canvas>` or blob-protected readers.
-- [ ] **2.7** Implement `content/manhwa/imageScanner.ts`:
+- [x] **2.6** Implement `background/serviceWorker.ts` image fetcher: download `<img>` bytes via background fetch with page cookies/Referer (bypassing canvas taint / CDN CORS restrictions), falling back to `chrome.tabs.captureVisibleTab` crop when an image is rendered inside `<canvas>` or blob-protected readers.
+- [x] **2.7** Implement `content/manhwa/imageScanner.ts`:
   - Detect tall vertical strip images (`naturalWidth >= 400`, vertical stack container).
   - Use `IntersectionObserver` with generous rootMargin (`+1500px` below viewport) to pre-fetch the next 1–2 vertical panels/slices ahead of scroll.
   - Handle responsive resize / zoom seamlessly using normalized `[0..1]` overlay coordinates relative to each image's rendered bounding box.
-- [ ] **2.8** Implement `content/manhwa/overlay.ts`:
+- [x] **2.8** Implement `content/manhwa/overlay.ts`:
   - Attach a lightweight pointer-pass-through overlay container anchored to each strip image.
   - Render **auto-colored rounded masks** for dialogue/narration bubbles and **subtle translucent pills** for floating text.
   - Implement binary-search Thai typography auto-fit (`word-break: keep-all` / Thai line-break friendly wrapping with `Intl.Segmenter('th')` support where helpful) so Thai text never overflows bubble edges.
   - Implement **instant peek**: hover over any bubble (or hold configurable hotkey `Alt+O`) to fade the mask to `opacity: 0` and reveal original English immediately.
-- [ ] **2.9** Implement `content/manhwa/snipTool.ts`:
+- [x] **2.9** Implement `content/manhwa/snipTool.ts`:
   - Press `Alt+S` (or click "Snip Region" in popup) → translucent crosshair overlay → drag rectangle over any missed bubble or `<canvas>` → captures exact crop via `captureVisibleTab` → calls `/translate/snip` → displays draggable/dismissible Thai result card right next to the selection.
 
 #### Phase 2 Verification
-- [ ] **Automated (`pytest`):** `test_strip_slicer.py` (overlap split, cross-boundary box merge, LTR top-to-bottom sorting) and `test_api_routes.py` (`/translate/manhwa` and `/translate/snip` contracts).
+- [x] **Automated (`pytest`):** `test_strip_slicer.py` (overlap split, cross-boundary box merge, LTR top-to-bottom sorting) and `test_api_routes.py` (`/translate/manhwa` and `/translate/snip` contracts).
 - [ ] **Benchmark (`benchmarks/bench_manhwa.py`):** Run against a sample vertical manhwa strip (e.g., 800×4000px); verify slice count, bubble detection recall, English OCR accuracy, total latency (< 5s per viewport slice), and combined peak VRAM (< 13.5 GB).
 - [ ] **Chrome/Edge Manual Checklist:**
   - Open a vertical long-strip manhwa chapter in Chrome/Edge and toggle on.

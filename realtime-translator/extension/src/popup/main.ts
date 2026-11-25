@@ -10,6 +10,7 @@ import type {
   ModelStatusResponse,
   PresetId,
   TabControlMessage,
+  TabModeOverride,
   TabStateSnapshot,
 } from "../shared/types";
 
@@ -39,6 +40,8 @@ async function sendTabMessage(
 function renderTabSnapshot(doc: Document, snapshot: TabStateSnapshot | null): void {
   const toggleBtn = doc.getElementById("toggle-btn") as HTMLButtonElement | null;
   const pageStats = doc.getElementById("page-stats");
+  const modeSelect = doc.getElementById("mode-select") as HTMLSelectElement | null;
+  const peekBtn = doc.getElementById("peek-btn") as HTMLButtonElement | null;
   if (!toggleBtn || !pageStats) {
     return;
   }
@@ -47,15 +50,34 @@ function renderTabSnapshot(doc: Document, snapshot: TabStateSnapshot | null): vo
     toggleBtn.textContent = "Unavailable on this page";
     toggleBtn.disabled = true;
     toggleBtn.classList.remove("active");
-    pageStats.textContent = "Open an English web novel page to translate.";
+    pageStats.textContent = "Open an English web novel or manhwa page to translate.";
     return;
   }
 
   toggleBtn.disabled = false;
   toggleBtn.classList.toggle("active", snapshot.enabled);
   toggleBtn.textContent = snapshot.enabled
-    ? "Translation ON (Alt+T to hide)"
+    ? `Translation ON (${snapshot.resolvedMode})`
     : "Translate Page (Alt+T)";
+
+  if (modeSelect) {
+    modeSelect.value = snapshot.modeOverride;
+  }
+  if (peekBtn) {
+    peekBtn.textContent = snapshot.peekActive ? "Unpeek (Alt+O)" : "Peek (Alt+O)";
+  }
+
+  if (snapshot.resolvedMode === "manhwa") {
+    pageStats.textContent =
+      snapshot.totalImages === 0
+        ? snapshot.enabled
+          ? "Scanning vertical strips..."
+          : "Manhwa mode ready (Alt+T translate, Alt+S snip)."
+        : `Translated ${snapshot.translatedImages}/${snapshot.totalImages} strips` +
+          (snapshot.pendingCount > 0 ? ` • ${snapshot.pendingCount} queued` : "") +
+          (snapshot.failedCount > 0 ? ` • ${snapshot.failedCount} failed` : "");
+    return;
+  }
 
   if (snapshot.totalParagraphs === 0) {
     pageStats.textContent = snapshot.enabled
@@ -146,8 +168,11 @@ export async function refreshPopup(doc: Document = document): Promise<void> {
 
 export async function initPopup(doc: Document = document): Promise<void> {
   const toggleBtn = doc.getElementById("toggle-btn") as HTMLButtonElement | null;
+  const snipBtn = doc.getElementById("snip-btn") as HTMLButtonElement | null;
+  const peekBtn = doc.getElementById("peek-btn") as HTMLButtonElement | null;
   const retryBtn = doc.getElementById("retry-btn") as HTMLButtonElement | null;
   const clearBtn = doc.getElementById("clear-btn") as HTMLButtonElement | null;
+  const modeSelect = doc.getElementById("mode-select") as HTMLSelectElement | null;
   const presetSelect = doc.getElementById("preset-select") as HTMLSelectElement | null;
   const loadBtn = doc.getElementById("load-model-btn") as HTMLButtonElement | null;
   const unloadBtn = doc.getElementById("unload-model-btn") as HTMLButtonElement | null;
@@ -166,7 +191,27 @@ export async function initPopup(doc: Document = document): Promise<void> {
 
   toggleBtn?.addEventListener("click", () => {
     const preset = (presetSelect?.value as PresetId | undefined) ?? "light_novel";
-    void sendTabMessage({ type: "RT_TAB_TOGGLE", preset }).then((snap) => {
+    const modeOverride = (modeSelect?.value as TabModeOverride | undefined) ?? "auto";
+    void sendTabMessage({ type: "RT_TAB_TOGGLE", preset, modeOverride }).then((snap) => {
+      renderTabSnapshot(doc, snap);
+    });
+  });
+
+  modeSelect?.addEventListener("change", () => {
+    const modeOverride = modeSelect.value as TabModeOverride;
+    void sendTabMessage({ type: "RT_TAB_SET_MODE", modeOverride }).then((snap) => {
+      renderTabSnapshot(doc, snap);
+    });
+  });
+
+  snipBtn?.addEventListener("click", () => {
+    void sendTabMessage({ type: "RT_TAB_SNIP" }).then(() => {
+      window.close();
+    });
+  });
+
+  peekBtn?.addEventListener("click", () => {
+    void sendTabMessage({ type: "RT_TAB_PEEK" }).then((snap) => {
       renderTabSnapshot(doc, snap);
     });
   });

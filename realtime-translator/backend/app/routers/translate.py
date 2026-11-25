@@ -6,6 +6,12 @@ import time
 
 from fastapi import APIRouter, Request
 
+from app.schemas.manhwa import (
+    ManhwaTranslateRequest,
+    ManhwaTranslateResponse,
+    SnipTranslateRequest,
+    SnipTranslateResponse,
+)
 from app.schemas.translation import (
     NovelParagraphResult,
     NovelTranslateRequest,
@@ -14,6 +20,7 @@ from app.schemas.translation import (
     SessionResetResponse,
 )
 from app.services.cache_store import CacheStore, compute_cache_key, compute_content_hash
+from app.services.manhwa_pipeline import ManhwaPipeline
 from app.services.model_manager import ModelManager
 from app.services.prompt_builder import (
     PromptItem,
@@ -117,3 +124,21 @@ async def translate_novel(
         cache_misses=len(misses),
         results=results,
     )
+
+
+@router.post("/translate/manhwa", response_model=ManhwaTranslateResponse)
+async def translate_manhwa(
+    request: Request,
+    body: ManhwaTranslateRequest,
+) -> ManhwaTranslateResponse:
+    pipeline: ManhwaPipeline = request.app.state.manhwa_pipeline
+    return await pipeline.translate_manhwa(body)
+
+
+@router.post("/translate/snip", response_model=SnipTranslateResponse)
+async def translate_snip(
+    request: Request,
+    body: SnipTranslateRequest,
+) -> SnipTranslateResponse:
+    pipeline: ManhwaPipeline = request.app.state.manhwa_pipeline
+    return await pipeline.translate_snip(body)

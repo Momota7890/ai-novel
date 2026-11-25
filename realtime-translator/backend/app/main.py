@@ -14,8 +14,15 @@ from app.errors import register_exception_handlers
 from app.routers import cache as cache_router
 from app.routers import health as health_router
 from app.routers import translate as translate_router
+from app.services.bubble_detector import BubbleDetector
 from app.services.cache_store import CacheStore
+from app.services.manhwa_pipeline import (
+    BubbleDetectorProtocol,
+    ManhwaPipeline,
+    OcrEngineProtocol,
+)
 from app.services.model_manager import ModelManager
+from app.services.ocr_engine import OcrEngine
 from app.services.prompt_builder import SessionContextStore
 from app.services.translator import TranslatorService
 
@@ -42,6 +49,9 @@ def create_app(
     model_manager: ModelManager | None = None,
     context_store: SessionContextStore | None = None,
     translator: TranslatorService | None = None,
+    bubble_detector: BubbleDetectorProtocol | None = None,
+    ocr_engine: OcrEngineProtocol | None = None,
+    manhwa_pipeline: ManhwaPipeline | None = None,
     watchdog_interval_seconds: float = 30.0,
 ) -> FastAPI:
     """Create and wire the FastAPI backend with injectable services for testing."""
@@ -63,12 +73,28 @@ def create_app(
             model_manager=active_manager,
             context_store=active_context,
         )
+        active_detector = bubble_detector or BubbleDetector(
+            repo_id=cfg.bubble_detector_repo,
+            hf_home=cfg.hf_home,
+        )
+        active_ocr = ocr_engine or OcrEngine()
+        active_manager.set_vision_model(active_detector)
+        active_pipeline = manhwa_pipeline or ManhwaPipeline(
+            cache_store=active_cache,
+            model_manager=active_manager,
+            translator=active_translator,
+            bubble_detector=active_detector,
+            ocr_engine=active_ocr,
+        )
 
         app.state.settings = cfg
         app.state.cache_store = active_cache
         app.state.model_manager = active_manager
         app.state.context_store = active_context
         app.state.translator = active_translator
+        app.state.bubble_detector = active_detector
+        app.state.ocr_engine = active_ocr
+        app.state.manhwa_pipeline = active_pipeline
 
         watchdog_task: asyncio.Task[None] | None = None
         if watchdog_interval_seconds > 0:

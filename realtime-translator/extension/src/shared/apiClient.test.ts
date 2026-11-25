@@ -1,10 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  arrayBufferToBase64,
   handleApiAbortMessage,
   handleApiRequestMessage,
+  handleFetchImageBase64Message,
 } from "../background/serviceWorker";
 import { ApiClientError, apiClient } from "./apiClient";
-import type { ApiAbortMessage, ApiRequestMessage } from "./types";
+import type {
+  ApiAbortMessage,
+  ApiRequestMessage,
+  FetchImageBase64Message,
+} from "./types";
 
 describe("shared/apiClient + background SW proxy", () => {
   beforeEach(() => {
@@ -132,5 +138,27 @@ describe("shared/apiClient + background SW proxy", () => {
       expect(apiErr.code).toBe("NETWORK_ERROR");
       expect(apiErr.retryable).toBe(true);
     }
+  });
+
+  it("fetches cross-origin manhwa images via SW and encodes bytes to base64", async () => {
+    const sampleBytes = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+    const fakeFetch = vi.fn(async () =>
+      new Response(sampleBytes.buffer, {
+        status: 200,
+        headers: { "content-type": "image/png; charset=binary" },
+      }),
+    );
+
+    vi.mocked(chrome.runtime.sendMessage).mockImplementation(async (msg: unknown) => {
+      return handleFetchImageBase64Message(msg as FetchImageBase64Message, fakeFetch);
+    });
+
+    const result = await apiClient.fetchImageBase64("https://cdn.manhwa.test/strip1.png");
+    expect(result.image_mime).toBe("image/png");
+    expect(result.image_base64).toBe(arrayBufferToBase64(sampleBytes.buffer));
+    expect(fakeFetch).toHaveBeenCalledWith(
+      "https://cdn.manhwa.test/strip1.png",
+      expect.objectContaining({ credentials: "include" }),
+    );
   });
 });

@@ -157,12 +157,20 @@
       </button>
       <div id="page-stats" class="meta">Ready on current tab</div>
       <div class="actions">
+        <button id="snip-btn" class="btn" type="button">Snip (Alt+S)</button>
+        <button id="peek-btn" class="btn" type="button">Peek (Alt+O)</button>
         <button id="retry-btn" class="btn" type="button">Retry Failed</button>
         <button id="clear-btn" class="btn" type="button">Clear Page</button>
       </div>
     </section>
 
     <section class="card">
+      <label for="mode-select">Page Mode</label>
+      <select id="mode-select" style="margin-bottom: 8px">
+        <option value="auto">Auto Detect (Novel / Manhwa)</option>
+        <option value="novel">Web Novel (Bilingual Inline)</option>
+        <option value="manhwa">Manhwa / Webtoon (Bubbles)</option>
+      </select>
       <label for="preset-select">Tone Preset</label>
       <select id="preset-select">
         <option value="light_novel">Light Novel Prose</option>

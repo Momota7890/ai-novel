@@ -9,6 +9,7 @@
   --rt-block-border: rgba(56, 189, 248, 0.55);
   --rt-error-bg: rgba(239, 68, 68, 0.1);
   --rt-error-border: rgba(239, 68, 68, 0.55);
+  --rt-mask-opacity: 0.98;
 }
 
 .rt-hidden .rt-thai-block,
@@ -16,6 +17,7 @@
   display: none !important;
 }
 
+/* --- Web Novel Bilingual Inline Blocks --- */
 .rt-thai-block {
   display: block;
   font-family: var(--rt-font-family);
@@ -44,7 +46,8 @@
   }
 }
 
-.rt-thai-block.rt-loading {
+.rt-thai-block.rt-loading,
+.rt-strip-status.rt-loading {
   font-style: italic;
   animation: rt-shimmer 1.2s ease-in-out infinite;
 }
@@ -78,4 +81,177 @@
 
 .rt-retry-btn:hover {
   opacity: 0.8;
+}
+
+/* --- Vertical Long-Strip Manhwa Overlays --- */
+.rt-manhwa-overlay-root {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  z-index: 2147483000;
+}
+
+.rt-manhwa-overlay {
+  position: absolute;
+  pointer-events: none;
+  overflow: visible;
+  box-sizing: border-box;
+}
+
+.rt-bubble-box {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 4px 6px;
+  box-sizing: border-box;
+  font-family: var(--rt-font-family);
+  font-weight: 600;
+  line-height: 1.25;
+  overflow-wrap: break-word;
+  word-break: keep-all;
+  pointer-events: auto;
+  cursor: default;
+  opacity: var(--rt-mask-opacity);
+  transition: opacity 0.14s ease;
+  user-select: text;
+}
+
+.rt-bubble-mask {
+  border-radius: 12px;
+}
+
+.rt-bubble-pill {
+  border-radius: 10px;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.rt-bubble-text {
+  display: block;
+  width: 100%;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+/* Instant peek on bubble hover or Alt+O global peek */
+.rt-bubble-box:hover,
+.rt-peek-all .rt-bubble-box {
+  opacity: 0 !important;
+}
+
+.rt-strip-status {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.85);
+  color: #f8fafc;
+  font-family: var(--rt-font-family);
+  font-size: 12px;
+  pointer-events: auto;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.rt-strip-status.rt-error {
+  background: rgba(127, 29, 29, 0.92);
+}
+
+/* --- Manual Alt+S Region Snip Tool --- */
+.rt-snip-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.35);
+  cursor: crosshair;
+  z-index: 2147483640;
+  user-select: none;
+}
+
+.rt-snip-hint {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.92);
+  color: #f8fafc;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  pointer-events: none;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
+.rt-snip-box {
+  position: fixed;
+  border: 2px solid #38bdf8;
+  background: rgba(56, 189, 248, 0.16);
+  pointer-events: none;
+  box-sizing: border-box;
+}
+
+.rt-snip-card {
+  position: fixed;
+  width: 300px;
+  max-width: calc(100vw - 24px);
+  background: #0f172a;
+  color: #f8fafc;
+  border: 1px solid #38bdf8;
+  border-radius: 10px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+  z-index: 2147483645;
+  overflow: hidden;
+  font-family: var(--rt-font-family);
+}
+
+.rt-snip-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: #1e293b;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: move;
+  user-select: none;
+}
+
+.rt-snip-close {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.rt-snip-close:hover {
+  color: #f8fafc;
+}
+
+.rt-snip-card-body {
+  padding: 10px 12px;
+  font-size: 15px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.rt-snip-card-source {
+  padding: 6px 12px 10px;
+  border-top: 1px solid #1e293b;
+  font-size: 11px;
+  color: #94a3b8;
+  line-height: 1.4;
 }

@@ -88,6 +88,7 @@ def _default_load_llm(
 ) -> LoadedLLM:
     """Load a Hugging Face CausalLM with 4-bit NF4 (default), 8-bit, or BF16."""
     os.environ["HF_HOME"] = hf_home
+    os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
 
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
@@ -206,7 +207,11 @@ class ModelManager:
 
     @property
     def bubble_detector_loaded(self) -> bool:
-        return self._vision_model is not None
+        if self._vision_model is None:
+            return False
+        if hasattr(self._vision_model, "is_loaded"):
+            return bool(self._vision_model.is_loaded)
+        return True
 
     def set_vision_model(self, vision_model: Any | None) -> None:
         """Register or clear Phase 2 vision detector so unload frees it cleanly."""
@@ -254,6 +259,8 @@ class ModelManager:
             if self._llm is not None and self._llm.model_id == target_model_id:
                 self._last_used_at = self._clock()
                 self._state = "loaded"
+                if load_vision and self._vision_model is not None and hasattr(self._vision_model, "load"):
+                    await asyncio.to_thread(self._vision_model.load)
                 return self.status()
 
             if self._llm is not None:
@@ -261,7 +268,8 @@ class ModelManager:
 
             self.settings.model_id = target_model_id
             await self._load_llm_locked(target_model_id)
-            _ = load_vision  # Vision loader attaches in Phase 2.
+            if load_vision and self._vision_model is not None and hasattr(self._vision_model, "load"):
+                await asyncio.to_thread(self._vision_model.load)
             return self.status()
 
     async def _load_llm_locked(self, target_model_id: str) -> None:

@@ -14,9 +14,54 @@ from fastapi.testclient import TestClient
 from app.config import QuantizationMode, Settings
 from app.main import create_app
 from app.services.cache_store import CacheStore
+from app.services.manhwa_pipeline import ManhwaPipeline
 from app.services.model_manager import LoadedLLM, ModelManager
 from app.services.prompt_builder import SessionContextStore
+from app.services.strip_slicer import DetectedBox
 from app.services.translator import TranslatorService
+
+
+@dataclass
+class FakeBubbleDetector:
+    boxes_by_slice: dict[int, list[DetectedBox]] = field(default_factory=dict)
+    detect_calls: int = 0
+    _loaded: bool = False
+
+    @property
+    def is_loaded(self) -> bool:
+        return self._loaded
+
+    def load(self) -> None:
+        self._loaded = True
+
+    def detect_slice(
+        self,
+        slice_rgb: Any,
+        *,
+        y_offset: int,
+        slice_index: int,
+    ) -> list[DetectedBox]:
+        _ = slice_rgb, y_offset
+        self._loaded = True
+        self.detect_calls += 1
+        return list(self.boxes_by_slice.get(slice_index, []))
+
+    def unload(self) -> None:
+        self._loaded = False
+
+
+@dataclass
+class FakeOcrEngine:
+    texts: list[str] = field(default_factory=list)
+    ocr_calls: int = 0
+
+    def extract_text(self, crop_rgb: Any) -> str:
+        _ = crop_rgb
+        idx = self.ocr_calls
+        self.ocr_calls += 1
+        if idx < len(self.texts):
+            return self.texts[idx]
+        return f"Sample bubble {idx}"
 
 
 @dataclass
@@ -63,6 +108,9 @@ class MockBackendHarness:
     model_manager: ModelManager
     context_store: SessionContextStore
     translator: TranslatorService
+    bubble_detector: FakeBubbleDetector
+    ocr_engine: FakeOcrEngine
+    manhwa_pipeline: ManhwaPipeline
     cuda: FakeCudaOps
     clock: FakeClock
     load_calls: list[tuple[str, QuantizationMode]] = field(default_factory=list)
@@ -174,12 +222,24 @@ def build_mock_harness(
         model_manager=model_manager,
         context_store=context_store,
     )
+    bubble_detector = FakeBubbleDetector()
+    ocr_engine = FakeOcrEngine()
+    manhwa_pipeline = ManhwaPipeline(
+        cache_store=cache_store,
+        model_manager=model_manager,
+        translator=translator,
+        bubble_detector=bubble_detector,
+        ocr_engine=ocr_engine,
+    )
     app = create_app(
         settings=settings,
         cache_store=cache_store,
         model_manager=model_manager,
         context_store=context_store,
         translator=translator,
+        bubble_detector=bubble_detector,
+        ocr_engine=ocr_engine,
+        manhwa_pipeline=manhwa_pipeline,
         watchdog_interval_seconds=0.0,
     )
 
@@ -190,6 +250,9 @@ def build_mock_harness(
         model_manager=model_manager,
         context_store=context_store,
         translator=translator,
+        bubble_detector=bubble_detector,
+        ocr_engine=ocr_engine,
+        manhwa_pipeline=manhwa_pipeline,
         cuda=cuda,
         clock=clock,
         load_calls=load_calls,
